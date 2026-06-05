@@ -20,11 +20,12 @@ class MockSearchProvider:
 class MockLLMProvider:
     def __init__(self, answer: str) -> None:
         self.answer = answer
-        self.questions: list[str] = []
+        self.prompts: list[str] = []
 
-    def generate(self, question: str) -> str:
-        self.questions.append(question)
-        return self.answer
+    def generate(self, prompt: str, **kwargs) -> dict:
+        del kwargs
+        self.prompts.append(prompt)
+        return {"answer": self.answer, "model_name": "mock-model", "provider": "mock"}
 
 
 def test_static_question_with_provided_answer_returns_full_output() -> None:
@@ -118,7 +119,7 @@ def test_base_answer_missing_uses_mock_llm_provider() -> None:
         search_provider=MockSearchProvider(),
     )
 
-    assert llm.questions == ["What is the latest Python version?"]
+    assert "What is the latest Python version?" in llm.prompts[0]
     assert result["original_answer"] == "Python 3.10 is the latest stable version of Python."
 
 

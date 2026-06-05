@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import time
 from typing import Any, Callable
 
-from temporalguard.llm.answer_generator import generate_answer
+from temporalguard.llm.answer_generator import generate_base_answer
 from temporalguard.reporting.report_generator import generate_report
 from temporalguard.skills.claim_extractor import extract_claims
 from temporalguard.skills.correction_generator import generate_correction
@@ -172,29 +172,15 @@ def _obtain_answer(
     if isinstance(base_answer, str) and base_answer.strip():
         return base_answer
     if llm_provider is not None:
-        try:
-            answer = _call_llm_provider(llm_provider, question)
-            if isinstance(answer, str) and answer.strip():
-                return answer
-            warnings.append("LLM provider returned an empty answer; using safe fallback answer.")
-        except Exception as exc:  # pragma: no cover - defensive boundary
-            errors.append({"step": "answer_generation", "message": str(exc)})
-            warnings.append("LLM answer generation failed; using safe fallback answer.")
-    try:
-        return generate_answer(question, {"config": config})
-    except Exception as exc:  # pragma: no cover - defensive boundary
-        errors.append({"step": "answer_generation", "message": str(exc)})
-        return "I could not generate a base answer safely."
-
-
-def _call_llm_provider(llm_provider: Any, question: str) -> str:
-    for method_name in ("generate_answer", "generate", "complete"):
-        method = getattr(llm_provider, method_name, None)
-        if callable(method):
-            return str(method(question))
-    if callable(llm_provider):
-        return str(llm_provider(question))
-    raise TypeError("llm_provider must be callable or expose generate_answer, generate, or complete.")
+        result = generate_base_answer(question, llm_provider, max_tokens=int(config.get("max_tokens", 512)))
+        warnings.extend(str(item) for item in result.get("warnings", []))
+        for error in result.get("errors", []):
+            errors.append({"step": "answer_generation", "message": str(error)})
+        answer = str(result.get("answer") or "").strip()
+        if result.get("status") == "success" and answer:
+            return answer
+    warnings.append("No base answer available; using safe fallback answer.")
+    return "I could not generate a base answer safely."
 
 
 def _run_step(step: str, errors: list[dict[str, str]], func: Callable[[], Any], fallback: Any) -> Any:
