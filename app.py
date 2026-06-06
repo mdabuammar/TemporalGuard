@@ -13,7 +13,7 @@ from temporalguard.frontend.components import (
     render_hero,
     render_metric_grid,
     render_result_card,
-    render_status_card,
+    render_step_flow,
     render_warning_card,
 )
 from temporalguard.frontend.streamlit_helpers import (
@@ -45,13 +45,7 @@ def main() -> None:
     controls = render_sidebar()
     st.markdown("<div class='tg-app-shell'>", unsafe_allow_html=True)
     render_hero()
-    render_status_card(
-        {
-            "mode": controls["run_mode"],
-            "report_type": controls["report_type"],
-            "status": "ready",
-        }
-    )
+    render_step_flow(active_step=1)
     question, base_answer = render_input_panel(controls)
 
     if "pipeline_output" not in st.session_state:
@@ -65,6 +59,7 @@ def main() -> None:
                 st.session_state.pipeline_output = run_dashboard_analysis(question, base_answer, controls)
 
     if st.session_state.pipeline_output:
+        render_step_flow(active_step=5)
         render_results(
             st.session_state.pipeline_output,
             show_raw_json=controls["show_raw_json"],
@@ -76,7 +71,7 @@ def main() -> None:
             <div class="tg-card">
               <div class="tg-section-title">Awaiting Analysis</div>
               <div class="tg-muted">
-                Select a sample or enter a custom question, then run TemporalGuard to generate a reliability report.
+                Choose a mode, enter a question, then click Run TemporalGuard.
               </div>
             </div>
             """,
@@ -102,19 +97,26 @@ def render_sidebar() -> dict[str, Any]:
             unsafe_allow_html=True,
         )
         run_mode = st.radio(
-            "Run mode",
-            ["Demo/mock mode", "Local pipeline", "API backend"],
+            "Step 1: Choose mode",
+            ["Demo Mode", "Local Pipeline", "Backend + Model API"],
             index=0,
         )
+        if run_mode == "Backend + Model API":
+            st.info("Turn off provided base answer if you want OpenRouter to generate the answer.")
         sample = st.selectbox("Sample question", SAMPLE_QUESTIONS, index=0)
         report_type = st.selectbox("Report type", ["dashboard", "technical", "thesis", "debug"], index=0)
 
-        st.markdown("<div class='tg-section-title'>Advanced Options</div>", unsafe_allow_html=True)
-        use_base_answer = st.checkbox("Use provided base answer", value=True)
+        st.markdown("<div class='tg-section-title'>Step 3: Answer Source</div>", unsafe_allow_html=True)
+        use_base_answer = st.checkbox("Use provided base answer", value=run_mode != "Backend + Model API")
         llm_provider_label = st.selectbox("LLM provider", list(LLM_PROVIDER_OPTIONS.keys()), index=0)
         model_name = st.text_input("Optional model name", value="openrouter/free")
         st.warning("API keys are read from environment variables only.")
         st.caption("OpenRouter API key is read from OPENROUTER_API_KEY in environment variables.")
+        if run_mode == "Backend + Model API" and llm_provider_label == "OpenRouter":
+            st.info("To test OpenRouter: turn OFF provided base answer, keep model as openrouter/free, and run a question.")
+            if use_base_answer:
+                st.warning("OpenRouter will not be called because provided base answer is enabled.")
+        st.markdown("<div class='tg-section-title'>Advanced</div>", unsafe_allow_html=True)
         show_raw_json = st.checkbox("Expand raw JSON by default", value=False)
         show_debug_report = st.checkbox("Show debug details", value=False)
         api_url = st.text_input("API backend URL", value="http://127.0.0.1:8000")
@@ -154,26 +156,27 @@ def render_input_panel(controls: dict[str, Any]) -> tuple[str, str]:
         """
         <div class="tg-card">
           <div class="tg-section-title">Question Analysis</div>
-          <div class="tg-muted">Run a temporal reliability check against a question and optional base LLM answer.</div>
+          <div class="tg-muted">Step 2: enter a question. Step 3: optionally provide the model answer to check.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    question = st.text_area("Question input", value=controls["sample_question"], height=92)
+    question = st.text_area("Step 2: Question", value=controls["sample_question"], height=92)
     default_answer = _default_base_answer(question)
     base_answer = ""
     if controls["use_base_answer"]:
-        base_answer = st.text_area("Optional base answer", value=default_answer, height=120)
-    elif controls["run_mode"] != "Demo/mock mode":
+        base_answer = st.text_area("Step 3: Provided base answer", value=default_answer, height=120)
+    elif controls["run_mode"] != "Demo Mode":
         render_warning_card("No base answer was provided. Local/API modes may need an LLM provider or supplied answer.")
+    st.markdown("<div class='tg-section-title'>Step 4: Run TemporalGuard from the sidebar button</div>", unsafe_allow_html=True)
     return question, base_answer
 
 
 def run_dashboard_analysis(question: str, base_answer: str, controls: dict[str, Any]) -> dict[str, Any]:
     mode = controls["run_mode"]
-    if mode == "Demo/mock mode":
+    if mode == "Demo Mode":
         return build_demo_output(question, base_answer or None)
-    if mode == "Local pipeline":
+    if mode == "Local Pipeline":
         try:
             from temporalguard.llm.providers import create_llm_provider
             from temporalguard.pipeline.orchestrator import run_temporalguard_pipeline
@@ -221,12 +224,13 @@ def call_api_backend(question: str, base_answer: str, controls: dict[str, Any]) 
 
 def render_results(output: dict[str, Any], show_raw_json: bool, debug_enabled: bool) -> None:
     summary = get_dashboard_summary(output)
-    render_result_card(get_final_answer(output), summary)
-    render_metric_grid(build_metric_cards(output))
 
-    tabs = st.tabs(["Overview", "Claims", "Evidence", "Report", "Debug"])
+    tabs = st.tabs(["Result", "Claims", "Evidence", "Report", "Debug"])
     with tabs[0]:
+        render_result_card(get_final_answer(output), summary)
+        render_metric_grid(build_metric_cards(output))
         render_overview(output)
+        render_what_happened()
     with tabs[1]:
         render_claims(output)
     with tabs[2]:
@@ -260,6 +264,21 @@ def render_overview(output: dict[str, Any]) -> None:
     )
     if warning:
         render_warning_card(str(warning))
+
+
+def render_what_happened() -> None:
+    st.markdown(
+        """
+        <div class="tg-card">
+          <div class="tg-section-title">What Happened?</div>
+          <div class="tg-muted" style="line-height: 1.75;">
+            TemporalGuard checked the answer, extracted factual claims, compared claims with evidence,
+            and generated a safety/risk label.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_claims(output: dict[str, Any]) -> None:
@@ -320,7 +339,7 @@ def render_debug(output: dict[str, Any], show_raw_json: bool, debug_enabled: boo
         unsafe_allow_html=True,
     )
     if debug_enabled:
-        st.write("Missing Sections:", safe_get(output, ["report", "debug_info", "missing_sections"], []))
+        st.caption(f"Missing sections: {safe_get(output, ['report', 'debug_info', 'missing_sections'], [])}")
     with st.expander("Raw JSON", expanded=show_raw_json):
         st.code(json.dumps(output, indent=2, default=str), language="json")
 

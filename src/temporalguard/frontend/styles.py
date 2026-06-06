@@ -357,6 +357,99 @@ def inject_premium_css() -> None:
           .block-container { padding-left: 1rem; padding-right: 1rem; }
           .tg-result-header { flex-direction: column; }
         }
+
+        /* UX simplification overrides */
+        .block-container {
+          max-width: 1080px;
+          padding-top: 1.2rem;
+          padding-bottom: 2rem;
+        }
+        .tg-hero {
+          grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+        .tg-card,
+        .tg-glass-card {
+          background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.84));
+          box-shadow: 0 16px 42px rgba(2, 6, 23, 0.24);
+          padding: 18px;
+        }
+        .tg-help-card {
+          background: linear-gradient(180deg, rgba(14, 116, 144, .22), rgba(30, 41, 59, .86));
+        }
+        .tg-hero-title {
+          font-size: 40px;
+        }
+        .tg-hero-subtitle,
+        .tg-answer-text {
+          font-size: 18px;
+        }
+        .tg-result-card {
+          margin: 8px 0 16px;
+        }
+        .tg-kpi-card {
+          min-height: 106px;
+          padding: 16px;
+          margin-bottom: 12px;
+          background: linear-gradient(180deg, rgba(51, 65, 85, 0.86), rgba(30, 41, 59, 0.82));
+          box-shadow: 0 12px 28px rgba(2, 6, 23, 0.18);
+        }
+        .tg-kpi-label {
+          color: #dbeafe;
+        }
+        .tg-kpi-caption {
+          color: #cbd5e1;
+          font-size: 13px;
+        }
+        .tg-section-title {
+          font-size: 14px;
+        }
+        .tg-step-flow {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 8px;
+          margin: 10px 0 16px;
+        }
+        .tg-step {
+          border: 1px solid rgba(203, 213, 225, .18);
+          background: rgba(30, 41, 59, .72);
+          border-radius: var(--tg-radius);
+          padding: 10px;
+          color: #cbd5e1;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 48px;
+        }
+        .tg-step span {
+          width: 24px;
+          height: 24px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(56, 189, 248, .14);
+          color: #bae6fd;
+          font-weight: 850;
+        }
+        .tg-step strong {
+          font-size: 13px;
+          line-height: 1.25;
+        }
+        .tg-step-active {
+          border-color: rgba(56, 189, 248, .5);
+          background: rgba(14, 116, 144, .22);
+        }
+        .stButton > button {
+          min-height: 48px;
+          font-size: 17px;
+        }
+        @media (max-width: 900px) {
+          .tg-step-flow {
+            grid-template-columns: 1fr;
+          }
+        }
         </style>
         """,
         unsafe_allow_html=True,
