@@ -1,15 +1,43 @@
-"""API schemas for TemporalGuard."""
+"""Pydantic request and response schemas for the TemporalGuard API."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
-class QuestionRequest(BaseModel):
-    question: str
+class AnalyzeRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    base_answer: str | None = None
+    report_type: str = "dashboard"
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
-class AnswerResponse(BaseModel):
-    question: str
+class BatchAnalyzeItem(BaseModel):
+    example_id: str | None = None
+    question: str = Field(..., min_length=1)
+    base_answer: str | None = None
+
+
+class BatchAnalyzeRequest(BaseModel):
+    items: list[BatchAnalyzeItem] = Field(..., min_length=1)
+    report_type: str = "dashboard"
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReportRequest(BaseModel):
+    pipeline_output: dict[str, Any] = Field(default_factory=dict)
+    report_type: str = "dashboard"
+    max_evidence_items: int = Field(default=5, ge=0, le=50)
+
+
+class EvaluateRequest(BaseModel):
+    benchmark_examples: list[dict[str, Any]] = Field(default_factory=list)
+    system_outputs: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class HealthResponse(BaseModel):
+    service: str
     status: str
-    answer: str
+    version: str
