@@ -106,8 +106,10 @@ def test_missing_fields_do_not_crash() -> None:
 
 def test_llm_provider_payload_helpers() -> None:
     assert LLM_PROVIDER_OPTIONS["Claude/Anthropic"] == "anthropic"
+    assert LLM_PROVIDER_OPTIONS["OpenRouter"] == "openrouter"
     assert normalize_llm_provider("OpenAI") == "openai"
     assert normalize_llm_provider("Gemini") == "gemini"
+    assert normalize_llm_provider("OpenRouter") == "openrouter"
 
     payload = build_analyze_payload(
         question="What is current?",

@@ -152,6 +152,60 @@ class AnthropicProvider:
         )
 
 
+class OpenRouterProvider:
+    provider_name = "openrouter"
+    default_model = "openrouter/free"
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+        timeout_seconds: int = 30,
+    ) -> None:
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        self.base_url = (base_url or os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
+        self.model_name = model_name or os.getenv("DEFAULT_MODEL_NAME") or self.default_model
+        self.timeout_seconds = max(1, int(timeout_seconds or 30))
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.api_key)
+
+    def generate(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        if not self.configured:
+            raise ProviderUnavailableError("OPENROUTER_API_KEY is not configured.")
+        max_tokens = int(kwargs.get("max_tokens") or 512)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "X-Title": "TemporalGuard",
+        }
+        referer = os.getenv("OPENROUTER_HTTP_REFERER")
+        if referer:
+            headers["HTTP-Referer"] = referer
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json={
+                "model": self.model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": max_tokens,
+            },
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        answer = str(payload.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+        return _provider_response(
+            answer=answer,
+            model_name=str(payload.get("model") or self.model_name),
+            provider=self.provider_name,
+            usage=_usage_from_openai(payload.get("usage")),
+        )
+
+
 def create_llm_provider(
     provider_name: str | None = None,
     model_name: str | None = None,
@@ -166,10 +220,17 @@ def create_llm_provider(
         provider = GeminiProvider(model_name=model_name)
     elif name == "anthropic":
         provider = AnthropicProvider(model_name=model_name)
+    elif name == "openrouter":
+        provider = OpenRouterProvider(model_name=model_name)
     else:
         raise ProviderUnavailableError(f"Unsupported LLM provider: {provider_name}")
     if require_configured and not provider.configured:
-        env_name = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}[name]
+        env_name = {
+            "openai": "OPENAI_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+        }[name]
         raise ProviderUnavailableError(f"{env_name} is not configured.")
     return provider
 
@@ -187,6 +248,8 @@ def normalize_provider_name(provider_name: str | None) -> str:
         "anthropic": "anthropic",
         "claude": "anthropic",
         "claude/anthropic": "anthropic",
+        "openrouter": "openrouter",
+        "openrouter/free": "openrouter",
     }
     return aliases.get(text, text)
 

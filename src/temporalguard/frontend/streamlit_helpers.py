@@ -20,6 +20,7 @@ LLM_PROVIDER_OPTIONS = {
     "OpenAI": "openai",
     "Gemini": "gemini",
     "Claude/Anthropic": "anthropic",
+    "OpenRouter": "openrouter",
 }
 
 
@@ -49,6 +50,8 @@ def normalize_llm_provider(value: Any) -> str:
         "anthropic": "anthropic",
         "claude": "anthropic",
         "claude/anthropic": "anthropic",
+        "openrouter": "openrouter",
+        "openrouter/free": "openrouter",
     }
     return aliases.get(lowered, "mock")
 

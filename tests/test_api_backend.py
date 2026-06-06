@@ -99,6 +99,40 @@ def test_analyze_endpoint_generates_with_mock_provider(monkeypatch) -> None:
     assert calls[0]["llm_provider"].model_name == "mock-api-test"
 
 
+def test_analyze_endpoint_accepts_openrouter_provider(monkeypatch) -> None:
+    calls = []
+    provider_calls = []
+
+    def fake_create_provider(provider_name, model_name=None, require_configured=False):
+        provider_calls.append(
+            {"provider_name": provider_name, "model_name": model_name, "require_configured": require_configured}
+        )
+        return MockLLMProvider(model_name=model_name or "openrouter/free")
+
+    def fake_pipeline(**kwargs):
+        calls.append(kwargs)
+        return _pipeline_output(kwargs["question"])
+
+    monkeypatch.setattr(main, "create_llm_provider", fake_create_provider)
+    monkeypatch.setattr(main, "run_temporalguard_pipeline", fake_pipeline)
+
+    response = client.post(
+        "/analyze",
+        json={
+            "question": "What is binary search?",
+            "base_answer": None,
+            "llm_provider": "openrouter",
+            "model_name": "openrouter/free",
+        },
+    )
+
+    assert response.status_code == 200
+    assert provider_calls == [
+        {"provider_name": "openrouter", "model_name": "openrouter/free", "require_configured": True}
+    ]
+    assert isinstance(calls[0]["llm_provider"], MockLLMProvider)
+
+
 def test_analyze_endpoint_returns_clean_error_for_unavailable_provider(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("DEFAULT_MODEL_NAME", raising=False)
