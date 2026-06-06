@@ -11,9 +11,7 @@ import streamlit as st
 from temporalguard.frontend.components import (
     render_footer,
     render_hero,
-    render_metric_grid,
     render_result_card,
-    render_summary_card,
     render_warning_card,
 )
 from temporalguard.frontend.streamlit_helpers import (
@@ -46,10 +44,8 @@ def main() -> None:
     st.markdown("<div class='tg-app-shell'>", unsafe_allow_html=True)
     render_hero()
 
-    main_col, side_col = st.columns([1.55, 0.8], gap="large")
-    with main_col:
-        question, base_answer, run_clicked = render_input_panel(controls)
-    with side_col:
+    question, base_answer, run_clicked = render_input_panel(controls)
+    with st.expander("Settings summary", expanded=False):
         render_run_summary(controls)
 
     if "pipeline_output" not in st.session_state:
@@ -62,15 +58,15 @@ def main() -> None:
             with st.spinner("TemporalGuard is checking temporal reliability..."):
                 st.session_state.pipeline_output = run_dashboard_analysis(question, base_answer, controls)
 
-    with main_col:
-        if st.session_state.pipeline_output:
-            render_results(
-                st.session_state.pipeline_output,
-                show_raw_json=controls["show_raw_json"],
-                debug_enabled=controls["show_debug_report"],
-            )
-        else:
-            render_empty_state()
+    if st.session_state.pipeline_output:
+        render_results(
+            st.session_state.pipeline_output,
+            controls=controls,
+            show_raw_json=controls["show_raw_json"],
+            debug_enabled=controls["show_debug_report"],
+        )
+    else:
+        render_empty_state()
 
     render_footer()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -107,10 +103,14 @@ def render_sidebar() -> dict[str, Any]:
         if run_mode == "Backend + Model API" and llm_provider_label == "OpenRouter":
             st.info("To test OpenRouter: turn off Use my own answer, keep model as openrouter/free, and run a question.")
 
-        st.markdown("<div class='tg-sidebar-section'>API Backend URL</div>", unsafe_allow_html=True)
-        api_url = st.text_input("API backend URL", value="http://127.0.0.1:8000")
-
         with st.expander("Advanced settings", expanded=False):
+            api_url = "http://127.0.0.1:8000"
+            if run_mode == "Backend + Model API":
+                api_url = st.text_input(
+                    "API backend URL",
+                    value=api_url,
+                    help="Used only when connecting the frontend to FastAPI.",
+                )
             sample = st.selectbox("Sample question", SAMPLE_QUESTIONS, index=0)
             report_type = st.selectbox("Report format", ["dashboard", "technical", "debug"], index=0)
             max_sources = st.slider("Max sources per claim", min_value=1, max_value=5, value=3)
@@ -153,11 +153,11 @@ def render_input_panel(controls: dict[str, Any]) -> tuple[str, str, bool]:
     if use_base_answer:
         base_answer = st.text_area("Answer to check", value=default_answer, height=135)
         if controls["run_mode"] == "Backend + Model API":
-            st.info("Model API will not be called because you are using your own answer.")
+            st.info("The model API will not be called because you provided an answer.")
         if controls["run_mode"] == "Backend + Model API" and controls.get("llm_provider_label") == "OpenRouter":
             st.warning("OpenRouter will not be called because Use my own answer is enabled.")
     elif controls["run_mode"] != "Demo Mode":
-        st.info("The selected provider will generate the base answer before TemporalGuard checks it.")
+        st.info("The selected model will generate the first answer before TemporalGuard checks it.")
     controls["use_base_answer"] = use_base_answer
     run_clicked = st.button("Run TemporalGuard", type="primary", width="stretch")
     return question, base_answer, run_clicked
@@ -167,12 +167,14 @@ def render_run_summary(controls: dict[str, Any]) -> None:
     provider = controls.get("llm_provider_label") or "Mock provider"
     mode = controls.get("run_mode", "Demo Mode")
     model = controls.get("model_name") or "Default model"
-    render_summary_card("Mode", str(mode), "How the answer is produced.", "tg-badge-safe")
-    render_summary_card("Provider", str(provider), str(model), "tg-badge-low")
+    cols = st.columns(3)
+    cols[0].metric("Mode", str(mode))
+    cols[1].metric("Provider", str(provider))
+    cols[2].metric("Model", str(model))
     if mode == "Backend + Model API":
-        render_summary_card("Backend", controls.get("api_url", ""), "API mode uses the configured backend.", "tg-badge-medium")
+        st.caption(f"Backend: {controls.get('api_url', '')}")
     else:
-        render_summary_card("Status", "Ready", "No backend setup needed for Demo Mode.", "tg-badge-safe")
+        st.caption("Ready. Demo Mode does not require backend setup.")
 
 
 def render_empty_state() -> None:
@@ -240,22 +242,26 @@ def call_api_backend(question: str, base_answer: str, controls: dict[str, Any]) 
         return _error_output(question, base_answer, f"TemporalGuard could not reach the API backend: {exc}")
 
 
-def render_results(output: dict[str, Any], show_raw_json: bool, debug_enabled: bool) -> None:
+def render_results(
+    output: dict[str, Any],
+    controls: dict[str, Any],
+    show_raw_json: bool,
+    debug_enabled: bool,
+) -> None:
     summary = get_dashboard_summary(output)
 
     tabs = st.tabs(["Answer", "Evidence", "Claims", "Details"])
     with tabs[0]:
         render_result_card(get_final_answer(output), summary)
         render_overview(output)
+        render_backend_evidence_note(output, controls)
         render_what_happened()
     with tabs[1]:
         render_evidence(output)
     with tabs[2]:
         render_claims(output)
     with tabs[3]:
-        render_metric_grid(build_metric_cards(output))
-        render_report(output)
-        render_debug(output, show_raw_json=show_raw_json, debug_enabled=debug_enabled)
+        render_details(output, show_raw_json=show_raw_json, debug_enabled=debug_enabled)
 
 
 def render_overview(output: dict[str, Any]) -> None:
@@ -298,6 +304,18 @@ def render_what_happened() -> None:
     )
 
 
+def render_backend_evidence_note(output: dict[str, Any], controls: dict[str, Any]) -> None:
+    if controls.get("run_mode") != "Backend + Model API":
+        return
+    evidence_total = _as_int(safe_get(output, ["evidence", "total_evidence_items"], 0))
+    trust_score = _as_float(safe_get(output, ["risk_label", "trust_score"], 0.0))
+    if evidence_total == 0 or trust_score < 0.5:
+        st.info(
+            "Model generation is working, but evidence retrieval is not connected in this mode, "
+            "so TemporalGuard may return low trust or insufficient evidence."
+        )
+
+
 def render_claims(output: dict[str, Any]) -> None:
     rows = claims_to_table_rows(output)
     st.markdown("<div class='tg-section-title'>Claims</div>", unsafe_allow_html=True)
@@ -316,6 +334,24 @@ def render_evidence(output: dict[str, Any]) -> None:
     st.dataframe(rows, width="stretch", hide_index=True)
 
 
+def render_details(output: dict[str, Any], show_raw_json: bool, debug_enabled: bool) -> None:
+    st.markdown("#### Details")
+    render_detail_metrics(output)
+    render_report(output)
+    render_debug(output, show_raw_json=show_raw_json, debug_enabled=debug_enabled)
+
+
+def render_detail_metrics(output: dict[str, Any]) -> None:
+    metrics = build_metric_cards(output)
+    columns = st.columns(2)
+    for index, metric in enumerate(metrics):
+        with columns[index % 2]:
+            st.metric(str(metric.get("label", "")), str(metric.get("value", "")))
+            caption = str(metric.get("caption", "")).strip()
+            if caption:
+                st.caption(caption)
+
+
 def render_report(output: dict[str, Any]) -> None:
     details = safe_get(output, ["report", "thesis_summary"], {}) or {}
     sections = [
@@ -325,18 +361,10 @@ def render_report(output: dict[str, Any]) -> None:
         ("Evidence Quality", details.get("evidence_quality", "Not reported.")),
         ("Decision", details.get("system_decision", "Not reported.")),
     ]
-    html = ["<div class='tg-split-grid'>"]
-    for title, value in sections:
-        html.append(
-            f"""
-            <div class="tg-card">
-              <div class="tg-section-title">{_escape(title)}</div>
-              <div class="tg-muted" style="line-height: 1.62;">{_escape(value)}</div>
-            </div>
-            """
-        )
-    html.append("</div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
+    with st.container():
+        for title, value in sections:
+            st.markdown(f"**{title}**")
+            st.caption(str(value))
 
 
 def render_debug(output: dict[str, Any], show_raw_json: bool, debug_enabled: bool) -> None:
@@ -358,6 +386,20 @@ def render_debug(output: dict[str, Any], show_raw_json: bool, debug_enabled: boo
         st.caption(f"Missing sections: {safe_get(output, ['report', 'debug_info', 'missing_sections'], [])}")
     with st.expander("Debug JSON", expanded=show_raw_json):
         st.code(json.dumps(output, indent=2, default=str), language="json")
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _as_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _default_base_answer(question: str) -> str:

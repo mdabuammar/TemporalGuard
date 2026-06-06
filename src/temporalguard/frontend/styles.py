@@ -99,6 +99,14 @@ def inject_premium_css() -> None:
         section[data-testid="stSidebar"] * {
           color: #e5eefb !important;
         }
+        section[data-testid="stSidebar"] [data-testid="stExpander"] {
+          background: rgba(255, 255, 255, .05) !important;
+          border: 1px solid rgba(148, 163, 184, .22) !important;
+          border-radius: 14px !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stExpander"] details {
+          background: transparent !important;
+        }
         section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
         section[data-testid="stSidebar"] .stCaptionContainer,
         section[data-testid="stSidebar"] small {
@@ -387,6 +395,12 @@ def inject_premium_css() -> None:
           border-radius: 12px !important;
           min-height: 42px;
         }
+        div[data-testid="stSelectbox"] [data-baseweb="select"],
+        div[data-testid="stSelectbox"] [data-baseweb="select"] *,
+        div[data-testid="stTextInput"] *,
+        div[data-testid="stTextArea"] * {
+          -webkit-text-fill-color: var(--tg-text) !important;
+        }
         div[data-testid="stSelectbox"] [data-baseweb="select"] span,
         div[data-testid="stSelectbox"] [data-baseweb="select"] input {
           color: var(--tg-text) !important;
@@ -430,10 +444,23 @@ def inject_premium_css() -> None:
           color: #0f172a !important;
           border-color: rgba(255, 255, 255, .2) !important;
         }
+        section[data-testid="stSidebar"] div[data-testid="stTextInput"] *,
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"],
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] * {
+          color: #0f172a !important;
+          -webkit-text-fill-color: #0f172a !important;
+        }
         section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] span,
         section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] input {
           color: #0f172a !important;
           -webkit-text-fill-color: #0f172a !important;
+        }
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] *,
+        section[data-testid="stSidebar"] div[data-testid="stCheckbox"] *,
+        section[data-testid="stSidebar"] div[data-testid="stToggle"] *,
+        section[data-testid="stSidebar"] div[data-testid="stSlider"] * {
+          color: #e5eefb !important;
+          -webkit-text-fill-color: unset !important;
         }
         .stButton > button {
           width: 100%;
@@ -483,6 +510,19 @@ def inject_premium_css() -> None:
           border-radius: var(--tg-radius);
           overflow: hidden;
           background: #ffffff;
+        }
+        div[data-testid="stMetric"] {
+          background: #ffffff;
+          border: 1px solid var(--tg-border);
+          border-radius: var(--tg-radius);
+          padding: 14px;
+          box-shadow: var(--tg-shadow-soft);
+        }
+        div[data-testid="stMetric"] * {
+          color: var(--tg-text) !important;
+        }
+        div[data-testid="stCaptionContainer"] {
+          color: var(--tg-muted) !important;
         }
         pre, code {
           color: #0f172a !important;
