@@ -47,8 +47,7 @@ def main() -> None:
     render_hero()
 
     question, base_answer, run_clicked = render_input_panel(controls)
-    with st.expander("Settings summary", expanded=False):
-        render_run_summary(controls)
+    render_accessible_settings_summary(controls)
 
     if "pipeline_output" not in st.session_state:
         st.session_state.pipeline_output = None
@@ -79,10 +78,10 @@ def render_sidebar() -> dict[str, Any]:
         st.markdown(
             """
             <div class="tg-sidebar-brand">
-              <div class="tg-section-title">Control panel</div>
-              <div class="tg-sidebar-title">Settings</div>
+              <div class="tg-brand-mark">TG</div>
+              <div class="tg-sidebar-title">TemporalGuard</div>
               <div class="tg-muted">
-                Configure how TemporalGuard checks the answer.
+                AI answer reliability controls.
               </div>
             </div>
             """,
@@ -99,7 +98,13 @@ def render_sidebar() -> dict[str, Any]:
             st.info("Turn off provided base answer if you want OpenRouter to generate the answer.")
 
         st.markdown("<div class='tg-sidebar-section'>Answer Source</div>", unsafe_allow_html=True)
-        use_base_answer = st.toggle("Use my own answer", value=run_mode != "Backend + Model API")
+        default_use_answer = run_mode != "Backend + Model API"
+        if st.session_state.get("tg_last_mode") != run_mode:
+            st.session_state.tg_use_own_answer = default_use_answer
+            st.session_state.tg_last_mode = run_mode
+        if "tg_use_own_answer" not in st.session_state:
+            st.session_state.tg_use_own_answer = default_use_answer
+        use_base_answer = st.toggle("Use my own answer", key="tg_use_own_answer")
 
         st.markdown("<div class='tg-sidebar-section'>LLM Provider</div>", unsafe_allow_html=True)
         llm_provider_label = st.selectbox("Model provider", list(LLM_PROVIDER_OPTIONS.keys()), index=0)
@@ -127,6 +132,7 @@ def render_sidebar() -> dict[str, Any]:
             show_raw_json = st.checkbox("Show raw JSON by default", value=False)
             show_debug_report = st.checkbox("Show debug details", value=False)
 
+        sidebar_run_clicked = st.button("Run TemporalGuard", type="primary", width="stretch", key="sidebar_run")
         st.markdown("<div class='tg-sidebar-section'>Status</div>", unsafe_allow_html=True)
         st.success("Ready")
         st.caption("API keys are read from environment variables only.")
@@ -145,6 +151,7 @@ def render_sidebar() -> dict[str, Any]:
         "api_url": api_url.rstrip("/"),
         "max_sources_per_claim": max_sources,
         "llm_provider_label": llm_provider_label,
+        "sidebar_run_clicked": sidebar_run_clicked,
     }
 
 
@@ -173,8 +180,8 @@ def render_input_panel(controls: dict[str, Any]) -> tuple[str, str, bool]:
         st.info("The selected model will generate the first answer before TemporalGuard checks it.")
     if controls["run_mode"] == "Backend + Model API" and controls.get("search_provider") == "none":
         st.info("No evidence provider selected. Fresh/current claims may receive low trust.")
-    run_clicked = st.button("Run TemporalGuard", type="primary", width="stretch")
-    return question, base_answer, run_clicked
+    run_clicked = st.button("Run TemporalGuard", type="primary", width="stretch", key="main_run")
+    return question, base_answer, bool(run_clicked or controls.get("sidebar_run_clicked"))
 
 
 def render_run_summary(controls: dict[str, Any]) -> None:
@@ -191,6 +198,14 @@ def render_run_summary(controls: dict[str, Any]) -> None:
         st.caption(f"Backend: {controls.get('api_url', '')}")
     else:
         st.caption("Ready. Demo Mode does not require backend setup.")
+
+
+def render_accessible_settings_summary(controls: dict[str, Any]) -> None:
+    with st.expander("Settings", expanded=False):
+        st.write(f"Mode: {controls.get('run_mode', 'Demo Mode')}")
+        st.write(f"Model provider: {controls.get('llm_provider_label', 'Mock provider')}")
+        st.write(f"Evidence provider: {controls.get('search_provider_label', 'None')}")
+        st.write(f"Model: {controls.get('model_name') or 'Default model'}")
 
 
 def render_empty_state() -> None:

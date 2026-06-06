@@ -130,9 +130,23 @@ def inject_premium_css() -> None:
             var(--tg-card-warm);
           box-shadow: var(--tg-shadow-soft);
         }
+        .tg-brand-mark {
+          width: 38px;
+          height: 38px;
+          border-radius: 14px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 12px;
+          background: linear-gradient(135deg, #2f2f2f, #6f9e82);
+          color: #fffaf0 !important;
+          font-weight: 900;
+          letter-spacing: .02em;
+          box-shadow: 0 10px 24px rgba(47, 47, 47, .18);
+        }
         .tg-sidebar-title {
           color: var(--tg-charcoal);
-          font-size: 22px;
+          font-size: 24px;
           line-height: 1.1;
           font-weight: 850;
           margin-bottom: 8px;
@@ -152,10 +166,12 @@ def inject_premium_css() -> None:
           position: relative;
           overflow: hidden;
           border: 1px solid rgba(238, 231, 216, .95);
-          border-radius: 30px;
-          padding: 32px;
+          border-radius: 32px;
+          padding: 42px 34px;
+          text-align: center;
           background:
-            radial-gradient(circle at 86% 18%, rgba(183, 223, 207, .55), transparent 30%),
+            radial-gradient(circle at 18% 18%, rgba(255, 250, 240, .98), transparent 30%),
+            radial-gradient(circle at 86% 18%, rgba(183, 223, 207, .58), transparent 30%),
             linear-gradient(135deg, rgba(255, 255, 255, .9), rgba(255, 250, 240, .94));
           box-shadow: var(--tg-shadow);
           animation: tgFadeUp .45s ease both;
@@ -171,10 +187,24 @@ def inject_premium_css() -> None:
           background: radial-gradient(circle, rgba(139, 191, 163, .28), transparent 70%);
           pointer-events: none;
         }
+        .tg-hero-kicker {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 30px;
+          padding: 6px 12px;
+          margin-bottom: 14px;
+          border: 1px solid rgba(139, 191, 163, .32);
+          border-radius: 999px;
+          background: rgba(217, 232, 220, .56);
+          color: #315d45;
+          font-size: 13px;
+          font-weight: 780;
+        }
         .tg-hero-title {
           margin: 0 0 10px;
           color: var(--tg-charcoal);
-          font-size: 43px;
+          font-size: 46px;
           line-height: 1.02;
           font-weight: 870;
           letter-spacing: 0;
@@ -182,9 +212,15 @@ def inject_premium_css() -> None:
         .tg-hero-subtitle {
           max-width: 720px;
           color: var(--tg-muted);
-          font-size: 18px;
+          font-size: 19px;
           line-height: 1.55;
-          margin: 0 0 18px;
+          margin: 0 auto 18px;
+        }
+        .tg-hero-chips {
+          display: flex;
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 8px;
         }
         .tg-chip {
           display: inline-flex;
@@ -210,6 +246,12 @@ def inject_premium_css() -> None:
           margin-bottom: 15px;
           animation: tgFadeUp .45s ease both;
           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .tg-workspace-card {
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(255, 250, 240, .88));
+          border-radius: 28px;
+          padding: 24px;
         }
         .tg-card:hover,
         .tg-kpi-card:hover {
@@ -250,7 +292,7 @@ def inject_premium_css() -> None:
         .tg-result-card {
           position: relative;
           overflow: hidden;
-          border-radius: 30px;
+          border-radius: 28px;
           padding: 1px;
           margin: 12px 0 18px;
           background: linear-gradient(135deg, #8bbfa3, #b7dfcf, #eee7d8);
@@ -259,8 +301,8 @@ def inject_premium_css() -> None:
           box-shadow: 0 24px 70px rgba(79, 127, 100, .14);
         }
         .tg-result-card-inner {
-          border-radius: 29px;
-          padding: 24px;
+          border-radius: 27px;
+          padding: 26px;
           background: rgba(255, 255, 255, .94);
         }
         .tg-result-header {
@@ -272,7 +314,7 @@ def inject_premium_css() -> None:
         }
         .tg-answer-text {
           color: var(--tg-text);
-          font-size: 18px;
+          font-size: 19px;
           line-height: 1.75;
           margin-top: 12px;
         }
@@ -385,6 +427,12 @@ def inject_premium_css() -> None:
           font-size: 16px !important;
           line-height: 1.55 !important;
         }
+        div[data-testid="stTextArea"] textarea:hover,
+        div[data-testid="stTextInput"] input:hover,
+        div[data-testid="stSelectbox"] [data-baseweb="select"] > div:hover {
+          border-color: rgba(139, 191, 163, .72) !important;
+          box-shadow: 0 8px 22px rgba(47, 47, 47, .05) !important;
+        }
         div[data-testid="stTextArea"] textarea::placeholder,
         div[data-testid="stTextInput"] input::placeholder {
           color: #737b86 !important;
@@ -435,6 +483,17 @@ def inject_premium_css() -> None:
           color: #264a36 !important;
           -webkit-text-fill-color: #264a36 !important;
         }
+        div[role="option"] {
+          color: var(--tg-text) !important;
+          -webkit-text-fill-color: var(--tg-text) !important;
+          background: #fffdf7 !important;
+        }
+        div[role="option"]:hover,
+        div[aria-selected="true"] {
+          color: #264a36 !important;
+          -webkit-text-fill-color: #264a36 !important;
+          background: var(--tg-sage-soft) !important;
+        }
         div[data-testid="stRadio"] label,
         div[data-testid="stCheckbox"] label,
         div[data-testid="stToggle"] label {
@@ -479,6 +538,17 @@ def inject_premium_css() -> None:
           color: #315d45 !important;
           background: rgba(217, 232, 220, .75);
           border-bottom: 2px solid var(--tg-sage);
+        }
+        div[data-testid="stExpander"] {
+          border: 1px solid var(--tg-border) !important;
+          border-radius: 20px !important;
+          background: rgba(255, 255, 255, .58) !important;
+          box-shadow: 0 8px 22px rgba(47, 47, 47, .04);
+        }
+        div[data-testid="stExpander"] summary,
+        div[data-testid="stExpander"] summary * {
+          color: var(--tg-text) !important;
+          font-weight: 760 !important;
         }
         div[data-testid="stDataFrame"] {
           border: 1px solid var(--tg-border);

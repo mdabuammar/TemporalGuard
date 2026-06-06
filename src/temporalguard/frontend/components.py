@@ -14,11 +14,10 @@ def render_hero() -> None:
         """
         <div class="tg-hero">
           <div class="tg-product-header">
+            <div class="tg-hero-kicker">AI Reliability Workspace</div>
             <div class="tg-hero-title">TemporalGuard</div>
-            <p class="tg-hero-subtitle">
-              Verify, correct, and trust time-sensitive AI answers.
-            </p>
-            <div>
+            <p class="tg-hero-subtitle">Verify, correct, and trust time-sensitive AI answers.</p>
+            <div class="tg-hero-chips">
               <span class="tg-chip">Detect</span>
               <span class="tg-chip">Verify</span>
               <span class="tg-chip">Correct</span>
