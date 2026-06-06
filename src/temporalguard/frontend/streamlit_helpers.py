@@ -15,6 +15,13 @@ SAMPLE_QUESTIONS = [
     "How do I use the OpenAI API in Python?",
 ]
 
+LLM_PROVIDER_OPTIONS = {
+    "Demo/mock": "mock",
+    "OpenAI": "openai",
+    "Gemini": "gemini",
+    "Claude/Anthropic": "anthropic",
+}
+
 
 def safe_get(data: dict[str, Any] | None, path: list[str], default: Any = None) -> Any:
     """Safely read a nested dictionary value."""
@@ -24,6 +31,43 @@ def safe_get(data: dict[str, Any] | None, path: list[str], default: Any = None) 
             return default
         current = current[key]
     return current
+
+
+def normalize_llm_provider(value: Any) -> str:
+    text = str(value or "Demo/mock").strip()
+    if text in LLM_PROVIDER_OPTIONS:
+        return LLM_PROVIDER_OPTIONS[text]
+    lowered = text.lower()
+    aliases = {
+        "demo": "mock",
+        "demo/mock": "mock",
+        "mock": "mock",
+        "openai": "openai",
+        "gpt": "openai",
+        "gemini": "gemini",
+        "google": "gemini",
+        "anthropic": "anthropic",
+        "claude": "anthropic",
+        "claude/anthropic": "anthropic",
+    }
+    return aliases.get(lowered, "mock")
+
+
+def build_analyze_payload(
+    question: str,
+    base_answer: str | None = None,
+    report_type: str = "dashboard",
+    llm_provider: Any = None,
+    model_name: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "question": str(question or ""),
+        "base_answer": base_answer if isinstance(base_answer, str) and base_answer.strip() else None,
+        "llm_provider": normalize_llm_provider(llm_provider),
+        "model_name": model_name.strip() if isinstance(model_name, str) and model_name.strip() else None,
+        "report_type": str(report_type or "dashboard"),
+    }
+    return payload
 
 
 def risk_to_css_class(risk_label: str | None) -> str:

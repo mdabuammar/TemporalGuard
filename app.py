@@ -17,7 +17,9 @@ from temporalguard.frontend.components import (
     render_warning_card,
 )
 from temporalguard.frontend.streamlit_helpers import (
+    LLM_PROVIDER_OPTIONS,
     SAMPLE_QUESTIONS,
+    build_analyze_payload,
     build_demo_output,
     build_metric_cards,
     claims_to_table_rows,
@@ -25,6 +27,7 @@ from temporalguard.frontend.streamlit_helpers import (
     format_label,
     get_dashboard_summary,
     get_final_answer,
+    normalize_llm_provider,
     safe_get,
 )
 from temporalguard.frontend.styles import inject_premium_css
@@ -108,6 +111,9 @@ def render_sidebar() -> dict[str, Any]:
 
         st.markdown("<div class='tg-section-title'>Advanced Options</div>", unsafe_allow_html=True)
         use_base_answer = st.checkbox("Use provided base answer", value=True)
+        llm_provider_label = st.selectbox("LLM provider", list(LLM_PROVIDER_OPTIONS.keys()), index=0)
+        model_name = st.text_input("Optional model name", value="")
+        st.warning("API keys are read from environment variables only.")
         show_raw_json = st.checkbox("Expand raw JSON by default", value=False)
         show_debug_report = st.checkbox("Show debug details", value=False)
         api_url = st.text_input("API backend URL", value="http://127.0.0.1:8000")
@@ -132,6 +138,8 @@ def render_sidebar() -> dict[str, Any]:
         "sample_question": sample,
         "report_type": report_type,
         "use_base_answer": use_base_answer,
+        "llm_provider": normalize_llm_provider(llm_provider_label),
+        "model_name": model_name.strip(),
         "show_raw_json": show_raw_json,
         "show_debug_report": show_debug_report,
         "api_url": api_url.rstrip("/"),
@@ -166,11 +174,20 @@ def run_dashboard_analysis(question: str, base_answer: str, controls: dict[str, 
         return build_demo_output(question, base_answer or None)
     if mode == "Local pipeline":
         try:
+            from temporalguard.llm.providers import create_llm_provider
             from temporalguard.pipeline.orchestrator import run_temporalguard_pipeline
 
+            llm_provider = None
+            if not base_answer:
+                llm_provider = create_llm_provider(
+                    controls.get("llm_provider"),
+                    model_name=controls.get("model_name") or None,
+                    require_configured=True,
+                )
             return run_temporalguard_pipeline(
                 question=question,
                 base_answer=base_answer or None,
+                llm_provider=llm_provider,
                 config={"max_sources_per_claim": controls["max_sources_per_claim"]},
                 report_type=controls["report_type"],
             )
@@ -183,11 +200,13 @@ def call_api_backend(question: str, base_answer: str, controls: dict[str, Any]) 
     try:
         response = requests.post(
             f"{controls['api_url']}/analyze",
-            json={
-                "question": question,
-                "base_answer": base_answer or None,
-                "report_type": controls["report_type"],
-            },
+            json=build_analyze_payload(
+                question=question,
+                base_answer=base_answer or None,
+                report_type=controls["report_type"],
+                llm_provider=controls.get("llm_provider"),
+                model_name=controls.get("model_name") or None,
+            ),
             timeout=20,
         )
         response.raise_for_status()

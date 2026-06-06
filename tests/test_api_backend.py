@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from temporalguard.api import main
+from temporalguard.llm.providers import MockLLMProvider
 
 
 client = TestClient(main.app)
@@ -71,6 +72,51 @@ def test_analyze_endpoint_uses_orchestrator(monkeypatch) -> None:
     assert calls[0]["llm_provider"] is None
     assert calls[0]["search_provider"] is None
     assert calls[0]["report_type"] == "technical"
+
+
+def test_analyze_endpoint_generates_with_mock_provider(monkeypatch) -> None:
+    calls = []
+
+    def fake_pipeline(**kwargs):
+        calls.append(kwargs)
+        return _pipeline_output(kwargs["question"])
+
+    monkeypatch.setattr(main, "run_temporalguard_pipeline", fake_pipeline)
+
+    response = client.post(
+        "/analyze",
+        json={
+            "question": "What is the latest Python version?",
+            "base_answer": None,
+            "llm_provider": "mock",
+            "model_name": "mock-api-test",
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls[0]["base_answer"] is None
+    assert isinstance(calls[0]["llm_provider"], MockLLMProvider)
+    assert calls[0]["llm_provider"].model_name == "mock-api-test"
+
+
+def test_analyze_endpoint_returns_clean_error_for_unavailable_provider(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("DEFAULT_MODEL_NAME", raising=False)
+
+    response = client.post(
+        "/analyze",
+        json={
+            "question": "What is current?",
+            "llm_provider": "openai",
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["error_type"] == "llm_provider_unavailable"
+    assert detail["module"] == "api.analyze"
+    assert detail["recoverable"] is False
+    assert "OPENAI_API_KEY" in detail["message"]
 
 
 def test_analyze_endpoint_returns_structured_error(monkeypatch) -> None:

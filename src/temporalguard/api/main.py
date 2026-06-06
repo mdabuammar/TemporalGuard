@@ -15,9 +15,10 @@ from temporalguard.api.schemas import (
     ReportRequest,
 )
 from temporalguard.evaluation.metrics import evaluate_pipeline_outputs
+from temporalguard.llm.providers import create_llm_provider
 from temporalguard.pipeline.orchestrator import run_temporalguard_pipeline
 from temporalguard.reporting.report_generator import generate_report
-from temporalguard.utils.errors import make_error, safe_call
+from temporalguard.utils.errors import ProviderUnavailableError, make_error, safe_call
 
 
 app = FastAPI(title="TemporalGuard API", version="0.1.0")
@@ -44,11 +45,17 @@ def health() -> HealthResponse:
 
 @app.post("/analyze")
 def analyze(request: AnalyzeRequest) -> dict[str, Any]:
+    llm_provider = _resolve_llm_provider(
+        base_answer=request.base_answer,
+        provider_name=request.llm_provider,
+        model_name=request.model_name,
+        module="api.analyze",
+    )
     result = safe_call(
         run_temporalguard_pipeline,
         question=request.question,
         base_answer=request.base_answer,
-        llm_provider=None,
+        llm_provider=llm_provider,
         search_provider=None,
         config=request.config,
         report_type=request.report_type,
@@ -66,11 +73,29 @@ def batch_analyze(request: BatchAnalyzeRequest) -> dict[str, Any]:
     outputs: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     for item in request.items:
+        try:
+            llm_provider = _resolve_llm_provider(
+                base_answer=item.base_answer,
+                provider_name=item.llm_provider or request.llm_provider,
+                model_name=item.model_name or request.model_name,
+                module="api.batch_analyze",
+            )
+        except HTTPException as exc:
+            error = dict(exc.detail) if isinstance(exc.detail, dict) else make_error(
+                "llm_provider_unavailable",
+                str(exc.detail),
+                "api.batch_analyze",
+                recoverable=True,
+            )
+            error["details"] = dict(error.get("details") or {})
+            error["details"]["example_id"] = item.example_id
+            errors.append(error)
+            continue
         result = safe_call(
             run_temporalguard_pipeline,
             question=item.question,
             base_answer=item.base_answer,
-            llm_provider=None,
+            llm_provider=llm_provider,
             search_provider=None,
             config=request.config,
             report_type=request.report_type,
@@ -132,6 +157,29 @@ def evaluate(request: EvaluateRequest) -> dict[str, Any]:
 def _raise_api_error(error: dict[str, Any] | None) -> None:
     detail = error or make_error("api_error", "Unknown API error.", "api", recoverable=False)
     raise HTTPException(status_code=500, detail=detail)
+
+
+def _resolve_llm_provider(
+    base_answer: str | None,
+    provider_name: str | None,
+    model_name: str | None,
+    module: str,
+) -> Any:
+    if isinstance(base_answer, str) and base_answer.strip():
+        return None
+    try:
+        return create_llm_provider(provider_name, model_name=model_name, require_configured=True)
+    except ProviderUnavailableError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=make_error(
+                "llm_provider_unavailable",
+                str(exc),
+                module,
+                recoverable=False,
+                details={"llm_provider": provider_name or "default", "model_name": model_name},
+            ),
+        ) from exc
 
 
 def _json_object(value: Any) -> dict[str, Any]:

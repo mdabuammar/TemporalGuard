@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 class AnalyzeRequest(BaseModel):
     question: str = Field(..., min_length=1)
     base_answer: str | None = None
+    llm_provider: str | None = None
+    model_name: str | None = None
     report_type: str = "dashboard"
     config: dict[str, Any] = Field(default_factory=dict)
 
@@ -18,10 +20,14 @@ class BatchAnalyzeItem(BaseModel):
     example_id: str | None = None
     question: str = Field(..., min_length=1)
     base_answer: str | None = None
+    llm_provider: str | None = None
+    model_name: str | None = None
 
 
 class BatchAnalyzeRequest(BaseModel):
     items: list[BatchAnalyzeItem] = Field(..., min_length=1)
+    llm_provider: str | None = None
+    model_name: str | None = None
     report_type: str = "dashboard"
     config: dict[str, Any] = Field(default_factory=dict)
 

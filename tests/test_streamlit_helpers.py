@@ -1,6 +1,8 @@
 from temporalguard.frontend.streamlit_helpers import (
+    LLM_PROVIDER_OPTIONS,
     SAMPLE_QUESTIONS,
     badge_to_css_class,
+    build_analyze_payload,
     build_dashboard_state,
     build_demo_output,
     build_metric_cards,
@@ -10,6 +12,7 @@ from temporalguard.frontend.streamlit_helpers import (
     get_dashboard_summary,
     get_final_answer,
     get_pipeline_summary,
+    normalize_llm_provider,
     risk_to_css_class,
     safe_get,
 )
@@ -91,6 +94,33 @@ def test_missing_fields_do_not_crash() -> None:
     assert len(build_metric_cards({})) == 6
     assert claims_to_table_rows({}) == []
     assert evidence_to_table_rows({}) == []
+    assert normalize_llm_provider(None) == "mock"
+    assert build_analyze_payload("Q") == {
+        "question": "Q",
+        "base_answer": None,
+        "llm_provider": "mock",
+        "model_name": None,
+        "report_type": "dashboard",
+    }
+
+
+def test_llm_provider_payload_helpers() -> None:
+    assert LLM_PROVIDER_OPTIONS["Claude/Anthropic"] == "anthropic"
+    assert normalize_llm_provider("OpenAI") == "openai"
+    assert normalize_llm_provider("Gemini") == "gemini"
+
+    payload = build_analyze_payload(
+        question="What is current?",
+        base_answer="Existing answer",
+        report_type="technical",
+        llm_provider="Claude/Anthropic",
+        model_name=" claude-test ",
+    )
+
+    assert payload["base_answer"] == "Existing answer"
+    assert payload["llm_provider"] == "anthropic"
+    assert payload["model_name"] == "claude-test"
+    assert payload["report_type"] == "technical"
 
 
 def test_build_metric_cards() -> None:

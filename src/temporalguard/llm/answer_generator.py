@@ -3,21 +3,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any
+
+from temporalguard.llm.providers import EMPTY_USAGE, LLMProvider
 
 
 DEFAULT_PROMPT_TEMPLATE = (
     "Answer the user question clearly and directly. Keep the answer concise. "
     "Do not add citations unless asked.\nQuestion: {question}"
 )
-EMPTY_USAGE = {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
-
-
-class LLMProvider(Protocol):
-    """Minimal provider interface for answer generation."""
-
-    def generate(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
-        """Generate an answer from a prompt."""
 
 
 def generate_base_answer(
