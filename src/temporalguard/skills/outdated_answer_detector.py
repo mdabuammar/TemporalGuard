@@ -247,8 +247,23 @@ def _infer_answer_status(
         return "OUTDATED" if len(results) == 1 or all(status in {"OUTDATED", "NOT_VERIFIABLE"} for status in statuses) else "PARTIALLY_OUTDATED"
     if "OUTDATED" in statuses or "PARTIALLY_SUPPORTED" in statuses:
         return "PARTIALLY_OUTDATED"
+    if temporal_category == "STATIC" and all(
+        status in {"SUPPORTED", "INSUFFICIENT_EVIDENCE", "NOT_VERIFIABLE"} for status in statuses
+    ):
+        if all(
+            str(claims_by_id.get(str(result.get("claim_id") or ""), {}).get("evidence_need") or "") == "optional"
+            or str(result.get("verification_status") or "") == "SUPPORTED"
+            for result in results
+        ):
+            return "NOT_OUTDATED"
     if any(status == "INSUFFICIENT_EVIDENCE" for status in central_statuses):
-        if high_risk or temporal_category in {"RECENT_ONLY", "TIME_SENSITIVE", "VERSION_DEPENDENT"}:
+        central_missing_evidence = [
+            result
+            for result in central_results
+            if str(result.get("verification_status") or "") == "INSUFFICIENT_EVIDENCE"
+            and not result.get("evidence_used")
+        ]
+        if high_risk and central_missing_evidence:
             return "UNVERIFIED_RISKY"
         return "NOT_ENOUGH_INFORMATION"
     if all(status == "SUPPORTED" for status in statuses):
@@ -256,7 +271,11 @@ def _infer_answer_status(
     if all(status == "NOT_VERIFIABLE" for status in statuses):
         return "NOT_APPLICABLE"
     if "INSUFFICIENT_EVIDENCE" in statuses:
-        return "UNVERIFIED_RISKY" if high_risk else "NOT_ENOUGH_INFORMATION"
+        missing_evidence = any(
+            str(result.get("verification_status") or "") == "INSUFFICIENT_EVIDENCE" and not result.get("evidence_used")
+            for result in results
+        )
+        return "UNVERIFIED_RISKY" if high_risk and missing_evidence else "NOT_ENOUGH_INFORMATION"
     return "NOT_ENOUGH_INFORMATION"
 
 

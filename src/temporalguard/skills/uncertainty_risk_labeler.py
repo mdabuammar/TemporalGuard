@@ -9,8 +9,9 @@ from typing import Any
 HIGH_RISK_PATTERN = re.compile(
     r"\b("
     r"medical|medicine|clinical|drug|diagnosis|treatment|law|legal|visa|immigration|tax|"
-    r"finance|interest rate|stock|crypto|policy|regulation|safety|security|vulnerability|"
-    r"government rule|university admission|amazon fba policy|insurance|employment law"
+    r"finance|interest rate|stock|crypto|policy|regulation|safety|vulnerability|"
+    r"government rule|university admission|amazon fba policy|insurance|employment law|"
+    r"esta|schengen|study permit|public health|covid"
     r")\b",
     re.IGNORECASE,
 )
@@ -186,8 +187,12 @@ def _infer_final_risk_label(
     correction = _correction_status(correction_payload)
     if outdatedness == "NOT_APPLICABLE":
         return "safe"
-    if high_risk and (correction == "unable_to_correct" or outdatedness in {"UNVERIFIED_RISKY", "CONTRADICTED"}):
+    if high_risk and _is_legal_policy_question(question) and outdatedness in {"OUTDATED", "PARTIALLY_OUTDATED", "CONTRADICTED", "UNVERIFIED_RISKY"}:
         return "critical_risk"
+    if high_risk and (correction == "unable_to_correct" or outdatedness == "UNVERIFIED_RISKY"):
+        return "critical_risk"
+    if high_risk and outdatedness in {"OUTDATED", "PARTIALLY_OUTDATED", "CONTRADICTED"}:
+        return "high_risk"
     if correction == "unable_to_correct":
         return "high_risk"
     if correction == "partially_corrected":
@@ -408,6 +413,14 @@ def _average_available(values: list[float | None], default: float) -> float:
 
 def _is_factual_question(question: str) -> bool:
     return FACTUAL_PATTERN.search(question) is not None
+
+
+def _is_legal_policy_question(question: str) -> bool:
+    return re.search(
+        r"\b(visa|esta|schengen|study permit|traveller|traveler|immigration|law|legal|policy|regulation|rule)\b",
+        question,
+        re.IGNORECASE,
+    ) is not None
 
 
 def _unique(items: list[str]) -> list[str]:

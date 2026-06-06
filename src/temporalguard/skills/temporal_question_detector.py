@@ -65,6 +65,10 @@ TIME_SENSITIVE_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\blaw\b", "law"),
     (r"\blegal(?:ly)?\b", "legal"),
     (r"\bvisa\b", "visa"),
+    (r"\besta\b", "ESTA"),
+    (r"\bschengen\b", "Schengen"),
+    (r"\bstudy permit\b", "study permit"),
+    (r"\btraveller|traveler\b", "traveller"),
     (r"\bpolicy\b", "policy"),
     (r"\brule\b", "rule"),
     (r"\bregulation\b", "regulation"),
@@ -94,6 +98,14 @@ HISTORICAL_ANCHOR_RE = re.compile(
     r"\b(?:in|during|before|after|since)\s+((?:19|20)\d{2})\b"
     r"|\b((?:19|20)\d{2})\b"
     r"|\b(yesterday|last week|last month|last year)\b",
+    re.IGNORECASE,
+)
+HISTORICAL_QUESTION_RE = re.compile(
+    r"\b("
+    r"who\s+won|when\s+did|when\s+was|what\s+year\s+did|"
+    r"who\s+was\b.+\bin\s+(?:19|20)\d{2}|"
+    r"was\b.+\bin\s+(?:19|20)\d{2}"
+    r")\b",
     re.IGNORECASE,
 )
 VERSION_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9 .+-]*\s+\d+(?:\.\d+){1,3}\b")
@@ -140,8 +152,8 @@ def detect_temporal_category(question: str) -> TemporalResult:
     software_signals = _collect_signals(text, SOFTWARE_PATTERNS)
     risk_signals = _collect_signals(text, TIME_SENSITIVE_PATTERNS)
 
-    if historical_anchor:
-        signals = _unique(recent_signals + software_signals + risk_signals + [historical_anchor])
+    if historical_anchor or HISTORICAL_QUESTION_RE.search(text):
+        signals = _unique(recent_signals + software_signals + risk_signals + ([historical_anchor] if historical_anchor else []))
         return _result(
             "HISTORICAL",
             True,
@@ -150,6 +162,30 @@ def detect_temporal_category(question: str) -> TemporalResult:
             signals,
             historical_anchor,
             "retrieve_historical_evidence",
+        )
+
+    if risk_signals and not recent_signals and _asks_policy_duration_or_rule(text):
+        signals = _unique(risk_signals + change_signals)
+        return _result(
+            "TIME_SENSITIVE",
+            True,
+            0.92,
+            "The question asks about a legal, visa, policy, or rule fact that can change over time.",
+            signals,
+            "current",
+            "retrieve_fresh_evidence",
+        )
+
+    if software_signals and change_signals and not recent_signals:
+        signals = _unique(software_signals + change_signals)
+        return _result(
+            "VERSION_DEPENDENT",
+            True,
+            0.92,
+            "The answer depends on a software version or support lifecycle.",
+            signals,
+            version_anchor,
+            "retrieve_fresh_evidence",
         )
 
     if recent_signals or _asks_if_still_active(text):
@@ -294,8 +330,14 @@ def _is_ambiguous_short_question(text: str) -> bool:
 def _looks_static_educational(text: str) -> bool:
     if any(re.search(pattern, text) for pattern in STATIC_START_PATTERNS):
         return True
+    if re.search(r"^is\s+[a-z0-9 .+-]+\s+(?:an?\s+)?(?:volatile memory|memory|algorithm|data structure|concept|technique)\??$", text):
+        return True
     return text.startswith("how does ") and not re.search(r"\buse|install|update|configure\b", text)
 
 
 def _asks_if_still_active(text: str) -> bool:
     return re.search(r"\bstill\b.*\bactive\b|\bactive\b.*\bstill\b", text) is not None
+
+
+def _asks_policy_duration_or_rule(text: str) -> bool:
+    return re.search(r"\bhow long\b|\bwithin a rolling period\b|\bvalid\b|\bstay\b|\bauthorization\b", text) is not None

@@ -177,9 +177,55 @@ def _extract_years(text: str) -> list[str]:
     return _unique(re.findall(r"\b(?:19|20)\d{2}\b", text))
 
 
+def _extract_dates(text: str) -> list[str]:
+    month_date = re.findall(
+        r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
+        r"Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+(?:19|20)\d{2}\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    iso_date = re.findall(r"\b(?:19|20)\d{2}-\d{2}-\d{2}\b", text)
+    return _unique([_normalize_space(value) for value in month_date + iso_date])
+
+
 def _extract_numbers(text: str) -> list[str]:
-    values = re.findall(r"\$\d+(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d+\.\d+\b", text)
+    word_numbers = {
+        "one": "1",
+        "two": "2",
+        "three": "3",
+        "four": "4",
+        "five": "5",
+        "six": "6",
+        "seven": "7",
+        "eight": "8",
+        "nine": "9",
+        "ten": "10",
+    }
+    values = re.findall(r"\$\d+(?:\.\d+)?|\b\d+(?:\.\d+)?%|\b\d+\.\d+\b|\b\d+\b", text)
+    for word, number in word_numbers.items():
+        if re.search(rf"\b{word}\b", text, re.IGNORECASE):
+            values.append(number)
     return _unique(values)
+
+
+def _extract_lifecycle_status(text: str) -> str | None:
+    lower = text.lower()
+    if re.search(r"\b(end[- ]?of[- ]?life|eol|reached end|ended|expired|removed|no longer supported|not supported)\b", lower):
+        return "inactive"
+    if re.search(r"\b(security maintenance|security updates?|supported|active lts|active|valid)\b", lower):
+        return "active"
+    return None
+
+
+def _extract_capability_status(text: str) -> str | None:
+    lower = text.lower()
+    if re.search(r"\b(legacy|deprecated)\b", lower):
+        return "legacy"
+    if re.search(r"\b(removed|no longer supports?|not supported|use .+ instead)\b", lower):
+        return "removed"
+    if re.search(r"\b(still supports?|supports?|recommended style|recommended)\b", lower):
+        return "supported"
+    return None
 
 
 def _extract_status_words(text: str) -> list[str]:
@@ -192,8 +238,48 @@ def _extract_status_words(text: str) -> list[str]:
 
 
 def _extract_candidate_entities(text: str) -> list[str]:
-    entities = re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\b", text)
-    return [entity for entity in _unique(entities) if entity.lower() not in {"the", "president"}]
+    pair_entities = re.findall(r"(?=(\b[A-Z][a-z]+\s+[A-Z][a-z]+\b))", text)
+    entities = pair_entities + re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}\b", text)
+    generic = {
+        "the",
+        "president",
+        "presidents",
+        "united states",
+        "white house",
+        "the white",
+        "house barack",
+        "source",
+        "based",
+        "download python",
+    }
+    return [
+        entity
+        for entity in _unique(entities)
+        if entity.lower() not in generic and " the " not in f" {entity.lower()} "
+    ]
+
+
+def _primary_evidence_statement(evidence_text: str) -> str:
+    text = re.sub(r"\s+", " ", evidence_text or "").strip()
+    if not text:
+        return ""
+    text = re.sub(r"\s+Source answers:.*$", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^.+? - authoritative evidence\s+", "", text, flags=re.IGNORECASE)
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    return sentences[0] if sentences else text
+
+
+def _normalize_space(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip())
+
+
+def _same_major_subject_version(claim_value: str, evidence_value: str) -> bool:
+    return claim_value.lower().split()[0:1] == evidence_value.lower().split()[0:1]
+
+
+def _asks_person_or_role(claim: dict[str, Any], temporal_category: str | None) -> bool:
+    text = f"{claim.get('claim_text') or ''} {claim.get('claim_type') or ''}".lower()
+    return temporal_category == "HISTORICAL" or re.search(r"\b(ceo|president|minister|founder|leader|won)\b", text) is not None
 
 
 def _compare_claim_and_evidence_values(
@@ -202,18 +288,26 @@ def _compare_claim_and_evidence_values(
     temporal_category: str | None,
 ) -> dict[str, Any]:
     claim_text = str(claim.get("claim_text") or "")
+    evidence_statement = _primary_evidence_statement(evidence_text)
+    comparison_text = evidence_statement or evidence_text
     claim_versions = _extract_versions(claim_text)
-    evidence_versions = _extract_versions(evidence_text)
+    evidence_versions = _extract_versions(comparison_text)
     claim_years = _extract_years(claim_text)
-    evidence_years = _extract_years(evidence_text)
+    evidence_years = _extract_years(comparison_text)
+    claim_dates = _extract_dates(claim_text)
+    evidence_dates = _extract_dates(comparison_text)
     claim_numbers = _extract_numbers(claim_text)
-    evidence_numbers = _extract_numbers(evidence_text)
+    evidence_numbers = _extract_numbers(comparison_text)
+    claim_lifecycle = _extract_lifecycle_status(claim_text)
+    evidence_lifecycle = _extract_lifecycle_status(comparison_text)
+    claim_capability = _extract_capability_status(claim_text)
+    evidence_capability = _extract_capability_status(comparison_text)
     claim_statuses = _extract_status_words(claim_text)
-    evidence_statuses = _extract_status_words(evidence_text)
+    evidence_statuses = _extract_status_words(comparison_text)
     claim_entities = [str(entity) for entity in claim.get("entities", []) if str(entity).strip()]
     if not claim_entities:
         claim_entities = _extract_candidate_entities(claim_text)
-    evidence_entities = _extract_candidate_entities(evidence_text)
+    evidence_entities = _extract_candidate_entities(comparison_text)
 
     comparison = {
         "supports": _overlap_score(claim_text, evidence_text) >= 0.45,
@@ -227,9 +321,47 @@ def _compare_claim_and_evidence_values(
     if claim_versions and evidence_versions:
         claim_value = claim_versions[0]
         evidence_value = evidence_versions[0]
+        if _same_major_subject_version(claim_value, evidence_value) and (claim_lifecycle or evidence_lifecycle or claim_capability or evidence_capability):
+            pass
+        else:
+            comparison.update(_value_comparison(claim_value, evidence_value, "version"))
+            if claim_value != evidence_value and _is_current_or_latest(claim, temporal_category):
+                comparison["conflict_type"] = "outdated"
+            return comparison
+
+    if claim_lifecycle and evidence_lifecycle:
+        comparison.update(_value_comparison(claim_lifecycle, evidence_lifecycle, "status"))
+        if claim_lifecycle != evidence_lifecycle:
+            comparison["conflict_type"] = "outdated" if _is_still_or_current_claim(claim) else "contradicted"
+        return comparison
+
+    if claim_capability and evidence_capability:
+        comparison.update(_value_comparison(claim_capability, evidence_capability, "capability"))
+        if claim_capability != evidence_capability:
+            comparison["conflict_type"] = "outdated" if evidence_capability == "legacy" else "contradicted"
+        return comparison
+
+    if _asks_person_or_role(claim, temporal_category) and claim_entities and evidence_entities:
+        claim_value = _best_entity_value(claim_entities, claim_text)
+        evidence_value = _best_entity_value(evidence_entities, comparison_text)
+        if claim_value and evidence_value:
+            comparison.update(_value_comparison(claim_value, evidence_value, "entity"))
+            if claim_value != evidence_value:
+                comparison["conflict_type"] = "outdated" if _is_current_or_latest(claim, temporal_category) else "contradicted"
+            return comparison
+
+    if claim_dates and evidence_dates:
+        comparison.update(_value_comparison(claim_dates[0], evidence_dates[0], "date"))
+        if claim_dates[0] != evidence_dates[0]:
+            comparison["conflict_type"] = "contradicted"
+        return comparison
+
+    if temporal_category == "HISTORICAL" and claim_years and evidence_years:
+        claim_value = claim_years[0]
+        evidence_value = evidence_years[0]
         comparison.update(_value_comparison(claim_value, evidence_value, "version"))
         if claim_value != evidence_value and _is_current_or_latest(claim, temporal_category):
-            comparison["conflict_type"] = "outdated"
+            comparison["conflict_type"] = "contradicted"
         return comparison
 
     if claim_statuses and evidence_statuses:
@@ -242,10 +374,12 @@ def _compare_claim_and_evidence_values(
 
     if claim_numbers and evidence_numbers:
         comparison.update(_value_comparison(claim_numbers[0], evidence_numbers[0], "number"))
+        if claim_numbers[0] != evidence_numbers[0]:
+            comparison["conflict_type"] = "contradicted"
         return comparison
 
     winner_claim = _winner_entity(claim_text)
-    winner_evidence = _winner_entity(evidence_text)
+    winner_evidence = _winner_entity(comparison_text)
     if winner_claim and winner_evidence:
         comparison.update(_value_comparison(winner_claim, winner_evidence, "entity"))
         if winner_claim != winner_evidence:
@@ -254,7 +388,7 @@ def _compare_claim_and_evidence_values(
 
     if temporal_category == "HISTORICAL" and claim_years:
         comparison["claim_value"] = _best_entity_value(claim_entities, claim_text)
-        comparison["evidence_value"] = comparison["claim_value"] if _historical_year_supported(claim_years[0], evidence_text) else None
+        comparison["evidence_value"] = comparison["claim_value"] if _historical_year_supported(claim_years[0], comparison_text) else None
         comparison["supports"] = bool(comparison["evidence_value"])
         comparison["partial"] = comparison["supports"] or any(year in evidence_years for year in claim_years)
         return comparison
@@ -262,7 +396,7 @@ def _compare_claim_and_evidence_values(
     if claim_entities:
         value = _best_entity_value(claim_entities, claim_text)
         comparison["claim_value"] = value
-        comparison["evidence_value"] = value if value and value.lower() in evidence_text.lower() else None
+        comparison["evidence_value"] = value if value and value.lower() in comparison_text.lower() else None
         if comparison["evidence_value"]:
             comparison["supports"] = True
     return comparison
@@ -453,6 +587,11 @@ def _is_current_or_latest(claim: dict[str, Any], temporal_category: str | None) 
     return temporal_category in STRICT_TEMPORAL_CATEGORIES or re.search(r"\b(latest|current|newest|still|active|fresh)\b", text, re.I) is not None
 
 
+def _is_still_or_current_claim(claim: dict[str, Any]) -> bool:
+    text = f"{claim.get('claim_text') or ''} {claim.get('temporal_anchor') or ''}"
+    return re.search(r"\b(still|current|currently|active|latest|newest)\b", text, re.IGNORECASE) is not None
+
+
 def _is_not_verifiable(claim_text: str) -> bool:
     return bool(SUBJECTIVE_PATTERN.search(claim_text))
 
@@ -468,10 +607,14 @@ def _freshness_value(freshness_result: dict[str, Any] | None, key: str, default:
 
 
 def _best_entity_value(entities: list[str], claim_text: str) -> str | None:
+    generic = {"united states", "president", "presidents", "white house", "source", "based"}
     for entity in entities:
-        if entity and entity.lower() in claim_text.lower() and entity.lower() not in {"united states", "president"}:
+        if entity and entity.lower() in claim_text.lower() and entity.lower() not in generic:
             return entity
-    return entities[0] if entities else None
+    for entity in entities:
+        if entity.lower() not in generic:
+            return entity
+    return None
 
 
 def _unique(values: list[str]) -> list[str]:
