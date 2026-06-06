@@ -73,7 +73,8 @@ def test_mock_search_provider_returns_configured_results_and_tracks_queries() ->
     assert provider.search("", max_results=5) == []
 
 
-def test_create_search_provider_defaults_to_mock() -> None:
+def test_create_search_provider_defaults_to_mock(monkeypatch) -> None:
+    monkeypatch.delenv("DEFAULT_SEARCH_PROVIDER", raising=False)
     provider = create_search_provider({})
 
     assert isinstance(provider, MockSearchProvider)
@@ -98,8 +99,6 @@ def test_create_search_provider_mock_uses_configured_results() -> None:
     ("provider_name", "provider_class"),
     [
         ("duckduckgo", DuckDuckGoSearchProvider),
-        ("brave", BraveSearchProvider),
-        ("tavily", TavilySearchProvider),
         ("serpapi", SerpApiSearchProvider),
         ("bing", BingSearchProvider),
     ],
@@ -121,12 +120,93 @@ def test_create_search_provider_returns_safe_skeletons(provider_name: str, provi
     assert provider.last_error == "provider_not_implemented"
 
 
-def test_api_provider_without_key_fails_safely() -> None:
+def test_api_provider_without_key_fails_safely(monkeypatch) -> None:
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     provider = create_search_provider({"search_provider": "brave"})
 
     assert isinstance(provider, BraveSearchProvider)
     assert provider.search("query") == []
     assert provider.last_error == "brave_api_key_missing"
+    tavily = create_search_provider({"search_provider": "tavily"})
+    assert isinstance(tavily, TavilySearchProvider)
+    assert tavily.search("query") == []
+    assert tavily.last_error == "tavily_api_key_missing"
+
+
+def test_tavily_provider_parses_mocked_response(monkeypatch) -> None:
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Python Downloads",
+                        "url": "https://www.python.org/downloads/",
+                        "content": "Python 3.13.5 is the newest release.",
+                        "published_date": "2026-06-01",
+                    }
+                ]
+            }
+
+    def fake_post(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return FakeResponse()
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.post", fake_post)
+
+    provider = TavilySearchProvider(api_key="test-key", timeout_seconds=3, max_results=2)
+    results = provider.search("latest Python version", max_results=1)
+
+    assert len(results) == 1
+    assert results[0].title == "Python Downloads"
+    assert results[0].source_type == "official"
+    assert results[0].snippet == "Python 3.13.5 is the newest release."
+    assert calls[0]["args"][0] == "https://api.tavily.com/search"
+    assert calls[0]["kwargs"]["json"]["api_key"] == "test-key"
+    assert calls[0]["kwargs"]["json"]["max_results"] == 1
+
+
+def test_brave_provider_parses_mocked_response(monkeypatch) -> None:
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "web": {
+                    "results": [
+                        {
+                            "title": "Python Downloads",
+                            "url": "https://www.python.org/downloads/",
+                            "description": "Download the latest Python release.",
+                            "profile": {"name": "Python"},
+                            "page_age": "2026-06-01T00:00:00Z",
+                        }
+                    ]
+                }
+            }
+
+    def fake_get(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return FakeResponse()
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.get", fake_get)
+
+    provider = BraveSearchProvider(api_key="test-key", timeout_seconds=3, max_results=2)
+    results = provider.search("latest Python version", max_results=1)
+
+    assert len(results) == 1
+    assert results[0].publisher == "Python"
+    assert results[0].updated_date == "2026-06-01"
+    assert calls[0]["args"][0] == "https://api.search.brave.com/res/v1/web/search"
+    assert calls[0]["kwargs"]["headers"]["X-Subscription-Token"] == "test-key"
 
 
 def test_duckduckgo_skeleton_does_not_require_key_but_does_not_search_in_tests() -> None:

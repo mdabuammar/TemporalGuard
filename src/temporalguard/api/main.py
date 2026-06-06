@@ -18,6 +18,7 @@ from temporalguard.evaluation.metrics import evaluate_pipeline_outputs
 from temporalguard.llm.providers import create_llm_provider
 from temporalguard.pipeline.orchestrator import run_temporalguard_pipeline
 from temporalguard.reporting.report_generator import generate_report
+from temporalguard.search.providers import create_search_provider
 from temporalguard.utils.errors import ProviderUnavailableError, make_error, safe_call
 
 
@@ -51,12 +52,13 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
         model_name=request.model_name,
         module="api.analyze",
     )
+    search_provider = _resolve_search_provider(request.search_provider, request.config)
     result = safe_call(
         run_temporalguard_pipeline,
         question=request.question,
         base_answer=request.base_answer,
         llm_provider=llm_provider,
-        search_provider=None,
+        search_provider=search_provider,
         config=request.config,
         report_type=request.report_type,
         module="api.analyze",
@@ -80,6 +82,7 @@ def batch_analyze(request: BatchAnalyzeRequest) -> dict[str, Any]:
                 model_name=item.model_name or request.model_name,
                 module="api.batch_analyze",
             )
+            search_provider = _resolve_search_provider(item.search_provider or request.search_provider, request.config)
         except HTTPException as exc:
             error = dict(exc.detail) if isinstance(exc.detail, dict) else make_error(
                 "llm_provider_unavailable",
@@ -96,7 +99,7 @@ def batch_analyze(request: BatchAnalyzeRequest) -> dict[str, Any]:
             question=item.question,
             base_answer=item.base_answer,
             llm_provider=llm_provider,
-            search_provider=None,
+            search_provider=search_provider,
             config=request.config,
             report_type=request.report_type,
             module="api.batch_analyze",
@@ -180,6 +183,16 @@ def _resolve_llm_provider(
                 details={"llm_provider": provider_name or "default", "model_name": model_name},
             ),
         ) from exc
+
+
+def _resolve_search_provider(provider_name: str | None, config: dict[str, Any] | None) -> Any:
+    name = str(provider_name or "").strip().lower()
+    if name in {"none", "off", "disabled"}:
+        return None
+    cfg = dict(config or {})
+    if provider_name is not None:
+        cfg["search_provider"] = provider_name
+    return create_search_provider(cfg)
 
 
 def _json_object(value: Any) -> dict[str, Any]:

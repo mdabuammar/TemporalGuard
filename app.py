@@ -17,6 +17,7 @@ from temporalguard.frontend.components import (
 from temporalguard.frontend.streamlit_helpers import (
     LLM_PROVIDER_OPTIONS,
     SAMPLE_QUESTIONS,
+    SEARCH_PROVIDER_OPTIONS,
     build_analyze_payload,
     build_demo_output,
     build_metric_cards,
@@ -26,6 +27,7 @@ from temporalguard.frontend.streamlit_helpers import (
     get_dashboard_summary,
     get_final_answer,
     normalize_llm_provider,
+    normalize_search_provider,
     safe_get,
 )
 from temporalguard.frontend.styles import inject_premium_css
@@ -100,6 +102,11 @@ def render_sidebar() -> dict[str, Any]:
         llm_provider_label = st.selectbox("Model provider", list(LLM_PROVIDER_OPTIONS.keys()), index=0)
         st.markdown("<div class='tg-sidebar-section'>Model</div>", unsafe_allow_html=True)
         model_name = st.text_input("Model name", value="openrouter/free")
+        search_provider_label = "None"
+        if run_mode == "Backend + Model API":
+            st.markdown("<div class='tg-sidebar-section'>Evidence Provider</div>", unsafe_allow_html=True)
+            search_provider_label = st.selectbox("Evidence provider", list(SEARCH_PROVIDER_OPTIONS.keys()), index=0)
+            st.caption("Evidence provider is used to verify fresh/current claims.")
         if run_mode == "Backend + Model API" and llm_provider_label == "OpenRouter":
             st.info("To test OpenRouter: turn off Use my own answer, keep model as openrouter/free, and run a question.")
 
@@ -127,6 +134,8 @@ def render_sidebar() -> dict[str, Any]:
         "report_type": report_type,
         "llm_provider": normalize_llm_provider(llm_provider_label),
         "model_name": model_name.strip(),
+        "search_provider": normalize_search_provider(search_provider_label),
+        "search_provider_label": search_provider_label,
         "show_raw_json": show_raw_json,
         "show_debug_report": show_debug_report,
         "api_url": api_url.rstrip("/"),
@@ -172,6 +181,8 @@ def render_run_summary(controls: dict[str, Any]) -> None:
     cols[1].metric("Provider", str(provider))
     cols[2].metric("Model", str(model))
     if mode == "Backend + Model API":
+        st.caption(f"Evidence provider: {controls.get('search_provider_label', 'None')}")
+    if mode == "Backend + Model API":
         st.caption(f"Backend: {controls.get('api_url', '')}")
     else:
         st.caption("Ready. Demo Mode does not require backend setup.")
@@ -200,6 +211,7 @@ def run_dashboard_analysis(question: str, base_answer: str, controls: dict[str, 
         try:
             from temporalguard.llm.providers import create_llm_provider
             from temporalguard.pipeline.orchestrator import run_temporalguard_pipeline
+            from temporalguard.search.providers import create_search_provider
 
             llm_provider = None
             if not base_answer:
@@ -208,10 +220,14 @@ def run_dashboard_analysis(question: str, base_answer: str, controls: dict[str, 
                     model_name=controls.get("model_name") or None,
                     require_configured=True,
                 )
+            search_provider = None
+            if controls.get("search_provider") != "none":
+                search_provider = create_search_provider({"search_provider": controls.get("search_provider")})
             return run_temporalguard_pipeline(
                 question=question,
                 base_answer=base_answer or None,
                 llm_provider=llm_provider,
+                search_provider=search_provider,
                 config={"max_sources_per_claim": controls["max_sources_per_claim"]},
                 report_type=controls["report_type"],
             )
@@ -230,6 +246,7 @@ def call_api_backend(question: str, base_answer: str, controls: dict[str, Any]) 
                 report_type=controls["report_type"],
                 llm_provider=controls.get("llm_provider"),
                 model_name=controls.get("model_name") or None,
+                search_provider=controls.get("search_provider"),
             ),
             timeout=20,
         )

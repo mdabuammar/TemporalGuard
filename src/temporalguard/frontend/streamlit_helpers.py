@@ -23,6 +23,13 @@ LLM_PROVIDER_OPTIONS = {
     "OpenRouter": "openrouter",
 }
 
+SEARCH_PROVIDER_OPTIONS = {
+    "None": "none",
+    "Mock": "mock",
+    "Tavily": "tavily",
+    "Brave": "brave",
+}
+
 
 def safe_get(data: dict[str, Any] | None, path: list[str], default: Any = None) -> Any:
     """Safely read a nested dictionary value."""
@@ -57,18 +64,36 @@ def normalize_llm_provider(value: Any) -> str:
     return aliases.get(lowered, "mock")
 
 
+def normalize_search_provider(value: Any) -> str:
+    text = str(value or "None").strip()
+    if text in SEARCH_PROVIDER_OPTIONS:
+        return SEARCH_PROVIDER_OPTIONS[text]
+    lowered = text.lower()
+    aliases = {
+        "none": "none",
+        "off": "none",
+        "disabled": "none",
+        "mock": "mock",
+        "tavily": "tavily",
+        "brave": "brave",
+    }
+    return aliases.get(lowered, "none")
+
+
 def build_analyze_payload(
     question: str,
     base_answer: str | None = None,
     report_type: str = "dashboard",
     llm_provider: Any = None,
     model_name: str | None = None,
+    search_provider: Any = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "question": str(question or ""),
         "base_answer": base_answer if isinstance(base_answer, str) and base_answer.strip() else None,
         "llm_provider": normalize_llm_provider(llm_provider),
         "model_name": model_name.strip() if isinstance(model_name, str) and model_name.strip() else None,
+        "search_provider": normalize_search_provider(search_provider),
         "report_type": str(report_type or "dashboard"),
     }
     return payload

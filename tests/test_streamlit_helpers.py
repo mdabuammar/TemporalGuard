@@ -1,6 +1,7 @@
 from temporalguard.frontend.streamlit_helpers import (
     LLM_PROVIDER_OPTIONS,
     SAMPLE_QUESTIONS,
+    SEARCH_PROVIDER_OPTIONS,
     badge_to_css_class,
     build_analyze_payload,
     build_dashboard_state,
@@ -13,6 +14,7 @@ from temporalguard.frontend.streamlit_helpers import (
     get_final_answer,
     get_pipeline_summary,
     normalize_llm_provider,
+    normalize_search_provider,
     risk_to_css_class,
     safe_get,
 )
@@ -95,11 +97,13 @@ def test_missing_fields_do_not_crash() -> None:
     assert claims_to_table_rows({}) == []
     assert evidence_to_table_rows({}) == []
     assert normalize_llm_provider(None) == "mock"
+    assert normalize_search_provider(None) == "none"
     assert build_analyze_payload("Q") == {
         "question": "Q",
         "base_answer": None,
         "llm_provider": "mock",
         "model_name": None,
+        "search_provider": "none",
         "report_type": "dashboard",
     }
 
@@ -107,9 +111,11 @@ def test_missing_fields_do_not_crash() -> None:
 def test_llm_provider_payload_helpers() -> None:
     assert LLM_PROVIDER_OPTIONS["Claude/Anthropic"] == "anthropic"
     assert LLM_PROVIDER_OPTIONS["OpenRouter"] == "openrouter"
+    assert SEARCH_PROVIDER_OPTIONS["Tavily"] == "tavily"
     assert normalize_llm_provider("OpenAI") == "openai"
     assert normalize_llm_provider("Gemini") == "gemini"
     assert normalize_llm_provider("OpenRouter") == "openrouter"
+    assert normalize_search_provider("Brave") == "brave"
 
     payload = build_analyze_payload(
         question="What is current?",
@@ -117,11 +123,13 @@ def test_llm_provider_payload_helpers() -> None:
         report_type="technical",
         llm_provider="Claude/Anthropic",
         model_name=" claude-test ",
+        search_provider="Tavily",
     )
 
     assert payload["base_answer"] == "Existing answer"
     assert payload["llm_provider"] == "anthropic"
     assert payload["model_name"] == "claude-test"
+    assert payload["search_provider"] == "tavily"
     assert payload["report_type"] == "technical"
 
 

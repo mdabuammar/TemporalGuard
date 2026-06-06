@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from temporalguard.api import main
 from temporalguard.llm.providers import MockLLMProvider
+from temporalguard.search.providers import MockSearchProvider
 
 
 client = TestClient(main.app)
@@ -47,6 +48,7 @@ def test_cors_headers_for_local_frontend() -> None:
 
 
 def test_analyze_endpoint_uses_orchestrator(monkeypatch) -> None:
+    monkeypatch.delenv("DEFAULT_SEARCH_PROVIDER", raising=False)
     calls = []
 
     def fake_pipeline(**kwargs):
@@ -70,7 +72,7 @@ def test_analyze_endpoint_uses_orchestrator(monkeypatch) -> None:
     assert data["temporal_detection"]["temporal_category"] == "STATIC"
     assert calls[0]["base_answer"] == "Binary search divides a sorted search space in half."
     assert calls[0]["llm_provider"] is None
-    assert calls[0]["search_provider"] is None
+    assert isinstance(calls[0]["search_provider"], MockSearchProvider)
     assert calls[0]["report_type"] == "technical"
 
 
@@ -97,6 +99,35 @@ def test_analyze_endpoint_generates_with_mock_provider(monkeypatch) -> None:
     assert calls[0]["base_answer"] is None
     assert isinstance(calls[0]["llm_provider"], MockLLMProvider)
     assert calls[0]["llm_provider"].model_name == "mock-api-test"
+
+
+def test_analyze_endpoint_accepts_search_provider(monkeypatch) -> None:
+    calls = []
+    search_calls = []
+
+    def fake_search_provider(config):
+        search_calls.append(config)
+        return MockSearchProvider([{"title": "Python", "url": "https://www.python.org/downloads/"}])
+
+    def fake_pipeline(**kwargs):
+        calls.append(kwargs)
+        return _pipeline_output(kwargs["question"])
+
+    monkeypatch.setattr(main, "create_search_provider", fake_search_provider)
+    monkeypatch.setattr(main, "run_temporalguard_pipeline", fake_pipeline)
+
+    response = client.post(
+        "/analyze",
+        json={
+            "question": "What is the latest Python version?",
+            "base_answer": "Python 3.10 is latest.",
+            "search_provider": "tavily",
+        },
+    )
+
+    assert response.status_code == 200
+    assert search_calls[0]["search_provider"] == "tavily"
+    assert isinstance(calls[0]["search_provider"], MockSearchProvider)
 
 
 def test_analyze_endpoint_accepts_openrouter_provider(monkeypatch) -> None:

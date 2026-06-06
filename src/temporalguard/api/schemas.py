@@ -12,6 +12,7 @@ class AnalyzeRequest(BaseModel):
     base_answer: str | None = None
     llm_provider: str | None = None
     model_name: str | None = None
+    search_provider: str | None = None
     report_type: str = "dashboard"
     config: dict[str, Any] = Field(default_factory=dict)
 
@@ -22,12 +23,14 @@ class BatchAnalyzeItem(BaseModel):
     base_answer: str | None = None
     llm_provider: str | None = None
     model_name: str | None = None
+    search_provider: str | None = None
 
 
 class BatchAnalyzeRequest(BaseModel):
     items: list[BatchAnalyzeItem] = Field(..., min_length=1)
     llm_provider: str | None = None
     model_name: str | None = None
+    search_provider: str | None = None
     report_type: str = "dashboard"
     config: dict[str, Any] = Field(default_factory=dict)
 

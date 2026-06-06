@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+import os
 from typing import Any, Dict, List, Optional, Protocol, Sequence
 from urllib.parse import urlparse
+
+import requests
 
 
 SOURCE_TYPES = {
@@ -162,9 +166,67 @@ class DuckDuckGoSearchProvider(_SafeProviderSkeleton):
 class BraveSearchProvider(_SafeProviderSkeleton):
     provider_name = "brave"
 
+    def __init__(self, api_key: Optional[str] = None, timeout_seconds: int = 10, max_results: int = 5) -> None:
+        super().__init__(
+            api_key=api_key or os.getenv("BRAVE_API_KEY"),
+            timeout_seconds=timeout_seconds,
+            max_results=max_results,
+        )
+
+    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
+        if not isinstance(query, str) or not query.strip():
+            self.last_error = "empty_query"
+            return []
+        if not self.configured:
+            self.last_error = "brave_api_key_missing"
+            return []
+        limit = min(max(1, int(max_results or self.max_results)), 10)
+        response = requests.get(
+            "https://api.search.brave.com/res/v1/web/search",
+            headers={"Accept": "application/json", "X-Subscription-Token": str(self.api_key)},
+            params={"q": query, "count": limit},
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        self.last_error = None
+        return [_brave_result_to_search_result(item) for item in _brave_items(payload)[:limit]]
+
 
 class TavilySearchProvider(_SafeProviderSkeleton):
     provider_name = "tavily"
+
+    def __init__(self, api_key: Optional[str] = None, timeout_seconds: int = 10, max_results: int = 5) -> None:
+        super().__init__(
+            api_key=api_key or os.getenv("TAVILY_API_KEY"),
+            timeout_seconds=timeout_seconds,
+            max_results=max_results,
+        )
+
+    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
+        if not isinstance(query, str) or not query.strip():
+            self.last_error = "empty_query"
+            return []
+        if not self.configured:
+            self.last_error = "tavily_api_key_missing"
+            return []
+        limit = min(max(1, int(max_results or self.max_results)), 10)
+        response = requests.post(
+            "https://api.tavily.com/search",
+            json={
+                "api_key": self.api_key,
+                "query": query,
+                "search_depth": "basic",
+                "max_results": limit,
+                "include_answer": False,
+                "include_raw_content": False,
+            },
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        self.last_error = None
+        return [_tavily_result_to_search_result(item) for item in payload.get("results", [])[:limit]]
 
 
 class SerpApiSearchProvider(_SafeProviderSkeleton):
@@ -177,18 +239,20 @@ class BingSearchProvider(_SafeProviderSkeleton):
 
 def create_search_provider(config: Dict[str, Any] | None) -> SearchProvider:
     cfg = config or {}
-    provider_name = str(cfg.get("search_provider", "mock")).strip().lower()
+    provider_name = str(cfg.get("search_provider") or os.getenv("DEFAULT_SEARCH_PROVIDER") or "mock").strip().lower()
     api_key = cfg.get("api_key")
     timeout_seconds = int(cfg.get("timeout_seconds", 10))
     max_results = int(cfg.get("max_results", 5))
+    if provider_name in {"", "none", "off", "disabled"}:
+        return MockSearchProvider([])
     if provider_name == "mock":
         return MockSearchProvider(cfg.get("mock_results") or cfg.get("results") or [])
     if provider_name == "duckduckgo":
         return DuckDuckGoSearchProvider(api_key=api_key, timeout_seconds=timeout_seconds, max_results=max_results)
     if provider_name == "brave":
-        return BraveSearchProvider(api_key=api_key, timeout_seconds=timeout_seconds, max_results=max_results)
+        return BraveSearchProvider(api_key=api_key or os.getenv("BRAVE_API_KEY"), timeout_seconds=timeout_seconds, max_results=max_results)
     if provider_name == "tavily":
-        return TavilySearchProvider(api_key=api_key, timeout_seconds=timeout_seconds, max_results=max_results)
+        return TavilySearchProvider(api_key=api_key or os.getenv("TAVILY_API_KEY"), timeout_seconds=timeout_seconds, max_results=max_results)
     if provider_name == "serpapi":
         return SerpApiSearchProvider(api_key=api_key, timeout_seconds=timeout_seconds, max_results=max_results)
     if provider_name == "bing":
@@ -199,3 +263,53 @@ def create_search_provider(config: Dict[str, Any] | None) -> SearchProvider:
 def _validate_source_type(value: Any) -> str | None:
     text = str(value or "").strip().lower()
     return text if text in SOURCE_TYPES else None
+
+
+def _tavily_result_to_search_result(item: Dict[str, Any]) -> SearchResult:
+    url = str(item.get("url") or "")
+    return SearchResult(
+        title=str(item.get("title") or ""),
+        url=url,
+        snippet=str(item.get("content") or item.get("snippet") or ""),
+        publisher=_publisher_from_url(url),
+        published_date=_optional_date(item.get("published_date")),
+        updated_date=_optional_date(item.get("updated_date") or item.get("published_date")),
+        source_type=infer_source_type_from_url(url),
+    )
+
+
+def _brave_items(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    web = payload.get("web") if isinstance(payload, dict) else {}
+    results = web.get("results") if isinstance(web, dict) else []
+    return [item for item in results if isinstance(item, dict)]
+
+
+def _brave_result_to_search_result(item: Dict[str, Any]) -> SearchResult:
+    url = str(item.get("url") or "")
+    return SearchResult(
+        title=str(item.get("title") or ""),
+        url=url,
+        snippet=str(item.get("description") or item.get("snippet") or ""),
+        publisher=str(item.get("profile", {}).get("name") or _publisher_from_url(url)),
+        published_date=_optional_date(item.get("page_age")),
+        updated_date=_optional_date(item.get("page_age")),
+        source_type=infer_source_type_from_url(url),
+    )
+
+
+def _publisher_from_url(url: str) -> str:
+    hostname = urlparse(str(url or "")).netloc.lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    return hostname or "unknown"
+
+
+def _optional_date(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.lower() in {"today", "now"}:
+        return datetime.now(UTC).strftime("%Y-%m-%d")
+    return text[:10] if len(text) >= 10 else text
