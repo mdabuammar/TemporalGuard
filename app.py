@@ -1,4 +1,4 @@
-"""TemporalGuard Streamlit dashboard."""
+"""TemporalGuard premium Streamlit dashboard."""
 
 from __future__ import annotations
 
@@ -8,29 +8,26 @@ from typing import Any
 import requests
 import streamlit as st
 
+from temporalguard.frontend.components import (
+    render_footer,
+    render_hero,
+    render_metric_grid,
+    render_result_card,
+    render_status_card,
+    render_warning_card,
+)
 from temporalguard.frontend.streamlit_helpers import (
+    SAMPLE_QUESTIONS,
     build_demo_output,
     build_metric_cards,
     claims_to_table_rows,
     evidence_to_table_rows,
-    format_badge,
+    format_label,
     get_dashboard_summary,
     get_final_answer,
-    get_pipeline_summary,
-    inject_custom_css,
-    risk_to_css_class,
     safe_get,
 )
-
-
-SAMPLE_QUESTIONS = [
-    "What is the latest Python version?",
-    "Who is the CEO of OpenAI?",
-    "Who won the 2014 FIFA World Cup?",
-    "What is binary search?",
-    "Is this visa rule still active?",
-    "How do I use the OpenAI API in Python?",
-]
+from temporalguard.frontend.styles import inject_premium_css
 
 
 def main() -> None:
@@ -40,10 +37,18 @@ def main() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    inject_custom_css()
+    inject_premium_css()
 
     controls = render_sidebar()
+    st.markdown("<div class='tg-app-shell'>", unsafe_allow_html=True)
     render_hero()
+    render_status_card(
+        {
+            "mode": controls["run_mode"],
+            "report_type": controls["report_type"],
+            "status": "ready",
+        }
+    )
     question, base_answer = render_input_panel(controls)
 
     if "pipeline_output" not in st.session_state:
@@ -51,23 +56,48 @@ def main() -> None:
 
     if controls["run_clicked"]:
         if not question.strip():
-            st.warning("Please enter a question before running TemporalGuard.")
+            render_warning_card("Enter a question before running TemporalGuard.")
         else:
-            st.session_state.pipeline_output = run_dashboard_analysis(question, base_answer, controls)
+            with st.spinner("TemporalGuard is checking temporal reliability..."):
+                st.session_state.pipeline_output = run_dashboard_analysis(question, base_answer, controls)
 
     if st.session_state.pipeline_output:
-        render_results(st.session_state.pipeline_output, controls["show_raw_json"], controls["show_debug_report"])
+        render_results(
+            st.session_state.pipeline_output,
+            show_raw_json=controls["show_raw_json"],
+            debug_enabled=controls["show_debug_report"],
+        )
     else:
         st.markdown(
-            "<div class='result-card muted-text'>Enter a question and run TemporalGuard to see the reliability report.</div>",
+            """
+            <div class="tg-card">
+              <div class="tg-section-title">Awaiting Analysis</div>
+              <div class="tg-muted">
+                Select a sample or enter a custom question, then run TemporalGuard to generate a reliability report.
+              </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+
+    render_footer()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_sidebar() -> dict[str, Any]:
     with st.sidebar:
-        st.markdown("### TemporalGuard")
-        st.caption("Time-aware LLM reliability dashboard")
+        st.markdown(
+            """
+            <div class="tg-card" style="padding: 16px; margin-bottom: 14px;">
+              <div class="tg-section-title">TemporalGuard</div>
+              <div style="font-size: 20px; font-weight: 830; color: #f8fafc;">Control Panel</div>
+              <div class="tg-muted" style="font-size: 12px; margin-top: 8px;">
+                Time-aware LLM reliability checks
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         run_mode = st.radio(
             "Run mode",
             ["Demo/mock mode", "Local pipeline", "API backend"],
@@ -76,13 +106,26 @@ def render_sidebar() -> dict[str, Any]:
         sample = st.selectbox("Sample question", SAMPLE_QUESTIONS, index=0)
         report_type = st.selectbox("Report type", ["dashboard", "technical", "thesis", "debug"], index=0)
 
-        st.markdown("#### Advanced")
+        st.markdown("<div class='tg-section-title'>Advanced Options</div>", unsafe_allow_html=True)
         use_base_answer = st.checkbox("Use provided base answer", value=True)
-        show_raw_json = st.checkbox("Show raw JSON", value=False)
-        show_debug_report = st.checkbox("Show debug report", value=False)
+        show_raw_json = st.checkbox("Expand raw JSON by default", value=False)
+        show_debug_report = st.checkbox("Show debug details", value=False)
         api_url = st.text_input("API backend URL", value="http://127.0.0.1:8000")
         max_sources = st.slider("Max sources per claim", min_value=1, max_value=5, value=3)
-        run_clicked = st.button("Run TemporalGuard", type="primary", use_container_width=True)
+        run_clicked = st.button("Run TemporalGuard", type="primary", width="stretch")
+
+        st.markdown(
+            """
+            <div class="tg-card" style="padding: 14px; margin-top: 16px;">
+              <div class="tg-section-title">Project Status</div>
+              <span class="tg-badge tg-badge-safe">DEMO ONLINE</span>
+              <div class="tg-muted" style="font-size: 12px; margin-top: 10px;">
+                Backend modes are optional and use the existing pipeline/API boundaries.
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     return {
         "run_mode": run_mode,
@@ -97,34 +140,23 @@ def render_sidebar() -> dict[str, Any]:
     }
 
 
-def render_hero() -> None:
+def render_input_panel(controls: dict[str, Any]) -> tuple[str, str]:
     st.markdown(
         """
-        <div class="hero-card">
-          <div class="hero-title">TemporalGuard</div>
-          <div class="hero-subtitle">
-            Time-aware reliability framework for detecting and correcting outdated LLM responses.
-          </div>
-          <span class="feature-chip">Temporal Detection</span>
-          <span class="feature-chip">Evidence Freshness</span>
-          <span class="feature-chip">Claim Verification</span>
-          <span class="feature-chip">Risk Labeling</span>
-          <span class="feature-chip">Correction</span>
+        <div class="tg-card">
+          <div class="tg-section-title">Question Analysis</div>
+          <div class="tg-muted">Run a temporal reliability check against a question and optional base LLM answer.</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-
-def render_input_panel(controls: dict[str, Any]) -> tuple[str, str]:
-    st.markdown("<div class='section-title'>Analyze an LLM answer</div>", unsafe_allow_html=True)
-    question = st.text_area("User question", value=controls["sample_question"], height=92)
+    question = st.text_area("Question input", value=controls["sample_question"], height=92)
     default_answer = _default_base_answer(question)
     base_answer = ""
     if controls["use_base_answer"]:
-        base_answer = st.text_area("Optional base LLM answer", value=default_answer, height=118)
+        base_answer = st.text_area("Optional base answer", value=default_answer, height=120)
     elif controls["run_mode"] != "Demo/mock mode":
-        st.info("No base answer was provided. Use demo mode or paste an LLM answer unless an LLM provider is configured.")
+        render_warning_card("No base answer was provided. Local/API modes may need an LLM provider or supplied answer.")
     return question, base_answer
 
 
@@ -167,28 +199,11 @@ def call_api_backend(question: str, base_answer: str, controls: dict[str, Any]) 
         return _error_output(question, base_answer, f"TemporalGuard could not reach the API backend: {exc}")
 
 
-def render_results(output: dict[str, Any], show_raw_json: bool, show_debug_report: bool) -> None:
+def render_results(output: dict[str, Any], show_raw_json: bool, debug_enabled: bool) -> None:
     summary = get_dashboard_summary(output)
-    final_answer = get_final_answer(output)
-    badge_class = risk_to_css_class(summary["risk_label"])
+    render_result_card(get_final_answer(output), summary)
+    render_metric_grid(build_metric_cards(output))
 
-    st.markdown(
-        f"""
-        <div class="result-card">
-          <div class="section-title">Corrected Answer</div>
-          <span class="risk-badge {badge_class}">{format_badge(summary["badge"])}</span>
-          <div class="result-answer" style="margin-top: 16px;">{_escape(final_answer)}</div>
-          <div class="muted-text" style="margin-top: 12px;">
-            Risk: {format_badge(summary["risk_label"])} · Trust: {summary["trust_score"]:.2f} · Safety: {summary["temporal_safety_status"]}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if summary["user_warning"]:
-        st.markdown(f"<div class='warning-card'>{_escape(str(summary['user_warning']))}</div>", unsafe_allow_html=True)
-
-    render_metric_cards(output)
     tabs = st.tabs(["Overview", "Claims", "Evidence", "Report", "Debug"])
     with tabs[0]:
         render_overview(output)
@@ -199,77 +214,93 @@ def render_results(output: dict[str, Any], show_raw_json: bool, show_debug_repor
     with tabs[3]:
         render_report(output)
     with tabs[4]:
-        render_debug(output, show_raw_json or show_debug_report)
-
-
-def render_metric_cards(output: dict[str, Any]) -> None:
-    cards = build_metric_cards(output)
-    cols = st.columns(3)
-    for index, card in enumerate(cards):
-        with cols[index % 3]:
-            st.markdown(
-                f"""
-                <div class="metric-card">
-                  <div class="metric-label">{_escape(card['label'])}</div>
-                  <div class="metric-value">{_escape(card['value'])}</div>
-                  <div class="metric-caption">{_escape(card['caption'])}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        render_debug(output, show_raw_json=show_raw_json, debug_enabled=debug_enabled)
 
 
 def render_overview(output: dict[str, Any]) -> None:
-    st.markdown("#### Original Answer")
-    st.write(safe_get(output, ["original_answer"], ""))
-    st.markdown("#### Corrected Answer")
-    st.write(get_final_answer(output))
-    st.markdown("#### Executive Summary")
-    st.write(safe_get(output, ["report", "executive_summary"], "No report summary available."))
-    issue = safe_get(output, ["outdatedness", "main_issue"])
-    if issue:
-        st.markdown("#### Main Issue")
-        st.write(issue)
     warning = get_dashboard_summary(output).get("user_warning")
+    st.markdown(
+        f"""
+        <div class="tg-split-grid">
+          <div class="tg-card">
+            <div class="tg-section-title">Original Answer</div>
+            <div class="tg-muted" style="line-height: 1.65;">{_escape(safe_get(output, ["original_answer"], "No original answer provided."))}</div>
+          </div>
+          <div class="tg-card">
+            <div class="tg-section-title">Corrected Answer</div>
+            <div class="tg-muted" style="line-height: 1.65;">{_escape(get_final_answer(output))}</div>
+          </div>
+        </div>
+        <div class="tg-card">
+          <div class="tg-section-title">Executive Summary</div>
+          <div class="tg-muted" style="line-height: 1.65;">{_escape(safe_get(output, ["report", "executive_summary"], "No report summary available."))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     if warning:
-        st.warning(warning)
+        render_warning_card(str(warning))
 
 
 def render_claims(output: dict[str, Any]) -> None:
     rows = claims_to_table_rows(output)
+    st.markdown("<div class='tg-section-title'>Claim-Level Verification</div>", unsafe_allow_html=True)
     if not rows:
-        st.info("No factual claims were extracted.")
+        st.markdown("<div class='tg-card tg-muted'>No factual claims were extracted.</div>", unsafe_allow_html=True)
         return
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
 
 def render_evidence(output: dict[str, Any]) -> None:
     rows = evidence_to_table_rows(output)
+    st.markdown("<div class='tg-section-title'>Fresh Evidence</div>", unsafe_allow_html=True)
     if not rows:
-        st.info("No evidence was retrieved or evidence retrieval was skipped.")
+        st.markdown("<div class='tg-card tg-muted'>No evidence was retrieved or evidence retrieval was skipped.</div>", unsafe_allow_html=True)
         return
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
 
 def render_report(output: dict[str, Any]) -> None:
-    st.markdown("#### Executive Summary")
-    st.write(safe_get(output, ["report", "executive_summary"], "No executive summary available."))
     thesis = safe_get(output, ["report", "thesis_summary"], {}) or {}
-    st.markdown("#### Thesis Summary")
-    for key, value in thesis.items():
-        st.write(f"**{key.replace('_', ' ').title()}**: {value}")
-    correction = safe_get(output, ["report", "correction_report"], {}) or safe_get(output, ["correction"], {}) or {}
-    st.markdown("#### Correction Notes")
-    for key in ("freshness_note", "uncertainty_note", "safety_note", "user_visible_explanation"):
-        if correction.get(key):
-            st.write(f"**{key.replace('_', ' ').title()}**: {correction[key]}")
+    sections = [
+        ("Executive Summary", safe_get(output, ["report", "executive_summary"], "No executive summary available.")),
+        ("Problem Observed", thesis.get("problem_observed", "Not reported.")),
+        ("Temporal Failure Type", thesis.get("temporal_failure_type", "Not reported.")),
+        ("Evidence Quality", thesis.get("evidence_quality", "Not reported.")),
+        ("System Decision", thesis.get("system_decision", "Not reported.")),
+        ("Research Value", thesis.get("research_value", "Not reported.")),
+    ]
+    html = ["<div class='tg-split-grid'>"]
+    for title, value in sections:
+        html.append(
+            f"""
+            <div class="tg-card">
+              <div class="tg-section-title">{_escape(title)}</div>
+              <div class="tg-muted" style="line-height: 1.62;">{_escape(value)}</div>
+            </div>
+            """
+        )
+    html.append("</div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
 
 
-def render_debug(output: dict[str, Any], show_raw_json: bool) -> None:
-    st.write("Pipeline Status:", safe_get(output, ["pipeline_status"], "unknown"))
-    st.write("Missing Sections:", safe_get(output, ["report", "debug_info", "missing_sections"], []))
-    st.write("Warnings:", safe_get(output, ["warnings"], []))
-    st.write("Errors:", safe_get(output, ["errors"], []))
+def render_debug(output: dict[str, Any], show_raw_json: bool, debug_enabled: bool) -> None:
+    status = safe_get(output, ["pipeline_status"], "unknown")
+    warnings = safe_get(output, ["warnings"], [])
+    errors = safe_get(output, ["errors"], [])
+    st.markdown(
+        f"""
+        <div class="tg-debug-box">
+          <div class="tg-section-title">Pipeline Status</div>
+          <div>Status: {_escape(format_label(status))}</div>
+          <div style="margin-top: 8px;">Warnings: {_escape(warnings)}</div>
+          <div style="margin-top: 8px;">Errors: {_escape(errors)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if debug_enabled:
+        st.write("Missing Sections:", safe_get(output, ["report", "debug_info", "missing_sections"], []))
     with st.expander("Raw JSON", expanded=show_raw_json):
         st.code(json.dumps(output, indent=2, default=str), language="json")
 
@@ -278,12 +309,14 @@ def _default_base_answer(question: str) -> str:
     lower = question.lower()
     if "binary search" in lower:
         return "Binary search divides a sorted search space in half."
-    if "world cup" in lower:
-        return "France won the 2014 FIFA World Cup."
     if "visa" in lower:
         return "Yes, this visa rule is still active."
+    if "world cup" in lower or "2014" in lower:
+        return "France won the 2014 FIFA World Cup."
+    if "ceo of openai" in lower or ("openai" in lower and "ceo" in lower):
+        return "Mira Murati is the CEO of OpenAI."
     if "openai api" in lower:
-        return "The OpenAI Python SDK lets developers call OpenAI models from Python applications."
+        return "Install openai and call openai.Completion.create with a text-davinci model."
     return "Python 3.10 is the latest stable version of Python."
 
 
@@ -291,23 +324,45 @@ def _error_output(question: str, base_answer: str, message: str) -> dict[str, An
     return {
         "question": question,
         "original_answer": base_answer,
-        "correction": {"corrected_answer": "TemporalGuard could not complete the analysis. Please check whether the pipeline or API backend is running."},
+        "correction": {
+            "corrected_answer": (
+                "TemporalGuard could not complete the analysis. Check whether the pipeline or API backend is running, "
+                "then retry the request."
+            ),
+            "correction_status": "failed",
+            "safety_note": message,
+        },
         "risk_label": {
-            "dashboard_badge": "UNKNOWN",
+            "dashboard_badge": "ANALYSIS UNAVAILABLE",
             "final_risk_label": "unknown_risk",
             "trust_score": 0.0,
             "temporal_safety_status": "needs_more_evidence",
-            "user_warning": message,
+            "user_warning": "TemporalGuard could not complete the analysis. Check whether the pipeline or API backend is running.",
         },
-        "report": {"executive_summary": message},
+        "report": {
+            "executive_summary": "The frontend caught an execution error and converted it into a safe dashboard result.",
+            "thesis_summary": {
+                "problem_observed": "Analysis did not complete.",
+                "temporal_failure_type": "Unavailable due to runtime or backend error.",
+                "evidence_quality": "No evidence available.",
+                "system_decision": "Show a controlled error card and hide technical details outside Debug.",
+                "research_value": "Keeps the demonstration UI stable during backend failures.",
+            },
+        },
         "pipeline_status": "failed",
         "errors": [{"step": "frontend", "message": message}],
         "warnings": [],
     }
 
 
-def _escape(value: str) -> str:
-    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def _escape(value: Any) -> str:
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 if __name__ == "__main__":

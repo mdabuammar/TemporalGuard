@@ -1,4 +1,6 @@
 from temporalguard.frontend.streamlit_helpers import (
+    SAMPLE_QUESTIONS,
+    badge_to_css_class,
     build_dashboard_state,
     build_demo_output,
     build_metric_cards,
@@ -19,15 +21,24 @@ def test_safe_get_nested_and_default() -> None:
     assert safe_get(data, ["a", "b", "c"]) == 3
     assert safe_get(data, ["a", "x"], "missing") == "missing"
     assert safe_get(None, ["a"], "fallback") == "fallback"
+    assert safe_get({"a": None}, ["a", "b"], "fallback") == "fallback"
 
 
-def test_risk_to_css_class_and_format_badge() -> None:
-    assert risk_to_css_class("safe") == "badge-safe"
-    assert risk_to_css_class("low_risk") == "badge-low"
-    assert risk_to_css_class("medium_risk") == "badge-medium"
-    assert risk_to_css_class("high_risk") == "badge-high"
-    assert risk_to_css_class("critical_risk") == "badge-critical"
-    assert risk_to_css_class(None) == "badge-unknown"
+def test_risk_to_css_class() -> None:
+    assert risk_to_css_class("safe") == "tg-badge-safe"
+    assert risk_to_css_class("low_risk") == "tg-badge-low"
+    assert risk_to_css_class("medium_risk") == "tg-badge-medium"
+    assert risk_to_css_class("high_risk") == "tg-badge-high"
+    assert risk_to_css_class("critical_risk") == "tg-badge-critical"
+    assert risk_to_css_class(None) == "tg-badge-unknown"
+
+
+def test_badge_to_css_class_and_format_badge() -> None:
+    assert badge_to_css_class("SAFE - STATIC KNOWLEDGE") == "tg-badge-safe"
+    assert badge_to_css_class("OUTDATED - CORRECTED") == "tg-badge-medium"
+    assert badge_to_css_class("HIGH - VERIFY") == "tg-badge-high"
+    assert badge_to_css_class("CRITICAL - VERIFY OFFICIAL SOURCE") == "tg-badge-critical"
+    assert badge_to_css_class(None) == "tg-badge-unknown"
     assert format_badge("medium_risk") == "MEDIUM RISK"
     assert format_badge(None) == "UNKNOWN"
 
@@ -40,7 +51,9 @@ def test_get_final_answer_prefers_correction() -> None:
     }
 
     assert get_final_answer(output) == "Corrected"
+    assert get_final_answer({"report": {"final_answer": "Report answer"}}) == "Report answer"
     assert get_final_answer({"original_answer": "Original"}) == "Original"
+    assert get_final_answer({}) == ""
 
 
 def test_get_dashboard_and_pipeline_summary_defaults() -> None:
@@ -64,10 +77,20 @@ def test_get_dashboard_and_pipeline_summary_defaults() -> None:
     pipeline = get_pipeline_summary(output)
 
     assert dashboard["badge"] == "OUTDATED - CORRECTED"
+    assert dashboard["badge_class"] == "tg-badge-medium"
+    assert dashboard["risk_class"] == "tg-badge-medium"
     assert dashboard["trust_score"] == 0.93
     assert pipeline["temporal_category"] == "RECENT_ONLY"
     assert pipeline["total_claims"] == 2
     assert pipeline["freshness_score"] == 0.98
+
+
+def test_missing_fields_do_not_crash() -> None:
+    assert get_dashboard_summary({})["badge"] == "UNKNOWN"
+    assert get_pipeline_summary({})["temporal_category"] == "UNKNOWN"
+    assert len(build_metric_cards({})) == 6
+    assert claims_to_table_rows({}) == []
+    assert evidence_to_table_rows({}) == []
 
 
 def test_build_metric_cards() -> None:
@@ -75,8 +98,15 @@ def test_build_metric_cards() -> None:
     cards = build_metric_cards(output)
 
     assert len(cards) == 6
-    assert cards[0]["label"] == "Temporal Category"
-    assert any(card["label"] == "Trust Score" for card in cards)
+    assert [card["label"] for card in cards] == [
+        "Temporal Category",
+        "Outdatedness",
+        "Verification",
+        "Correction",
+        "Trust Score",
+        "Freshness Score",
+    ]
+    assert any(card["value"] == "0.93" for card in cards)
 
 
 def test_claims_to_table_rows_from_pipeline() -> None:
@@ -111,11 +141,11 @@ def test_claims_to_table_rows_from_pipeline() -> None:
             "Claim ID": "C1",
             "Claim Text": "Python 3.10 is latest.",
             "Claim Type": "software_version",
-            "Verification Status": "OUTDATED",
-            "Risk Level": "high",
+            "Verification": "OUTDATED",
+            "Risk": "high",
             "Claim Value": "Python 3.10",
             "Evidence Value": "Python 3.13.5",
-            "Requires Correction": True,
+            "Correction": True,
         }
     ]
 
@@ -158,25 +188,30 @@ def test_evidence_to_table_rows_from_pipeline() -> None:
 
     assert rows[0]["Evidence ID"] == "E1"
     assert rows[0]["Claim ID"] == "C1"
-    assert rows[0]["Freshness Label"] == "very_fresh"
-    assert rows[0]["Combined Score"] == 0.98
+    assert rows[0]["Freshness"] == "very_fresh"
+    assert rows[0]["Score"] == 0.98
 
 
-def test_build_demo_output_latest_python() -> None:
-    output = build_demo_output("What is the latest Python version?")
+def test_build_demo_output_for_all_sample_questions() -> None:
+    for question in SAMPLE_QUESTIONS:
+        output = build_demo_output(question)
 
-    assert output["risk_label"]["dashboard_badge"] == "OUTDATED - CORRECTED"
-    assert "Python 3.13.5" in output["correction"]["corrected_answer"]
-    assert output["claims"]["total_claims"] == 1
+        assert output["question"] == question
+        assert output["pipeline_status"] == "success"
+        assert output["temporal_detection"]["temporal_category"]
+        assert output["claims"]["total_claims"] >= 1
+        assert claims_to_table_rows(output)
+        assert evidence_to_table_rows(output)
+        assert get_final_answer(output)
+        assert get_dashboard_summary(output)["badge"] != "UNKNOWN"
+        assert "problem_observed" in output["report"]["thesis_summary"]
 
 
-def test_build_demo_output_static_and_high_risk() -> None:
-    static_output = build_demo_output("What is binary search?")
-    visa_output = build_demo_output("Is this visa rule still active?")
+def test_build_demo_output_respects_base_answer() -> None:
+    output = build_demo_output("Who is the CEO of OpenAI?", "An older base answer.")
 
-    assert static_output["risk_label"]["dashboard_badge"] == "SAFE"
-    assert visa_output["risk_label"]["final_risk_label"] == "critical_risk"
-    assert visa_output["correction"]["unsupported_claim_ids"] == ["C1"]
+    assert output["original_answer"] == "An older base answer."
+    assert claims_to_table_rows(output)[0]["Claim Text"] == "An older base answer."
 
 
 def test_build_dashboard_state_returns_mapping() -> None:

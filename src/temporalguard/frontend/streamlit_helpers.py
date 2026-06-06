@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 
+SAMPLE_QUESTIONS = [
+    "What is the latest Python version?",
+    "What is binary search?",
+    "Is this visa rule still active?",
+    "Who won the 2014 FIFA World Cup?",
+    "Who is the CEO of OpenAI?",
+    "How do I use the OpenAI API in Python?",
+]
+
+
 def safe_get(data: dict[str, Any] | None, path: list[str], default: Any = None) -> Any:
+    """Safely read a nested dictionary value."""
     current: Any = data
     for key in path:
         if not isinstance(current, dict) or key not in current:
@@ -16,28 +28,49 @@ def safe_get(data: dict[str, Any] | None, path: list[str], default: Any = None) 
 
 def risk_to_css_class(risk_label: str | None) -> str:
     label = str(risk_label or "").lower()
-    if label in {"safe"}:
-        return "badge-safe"
-    if "low" in label:
-        return "badge-low"
-    if "medium" in label:
-        return "badge-medium"
+    if label in {"safe", "safe_to_show"}:
+        return "tg-badge-safe"
     if "critical" in label:
-        return "badge-critical"
+        return "tg-badge-critical"
     if "high" in label:
-        return "badge-high"
-    return "badge-unknown"
+        return "tg-badge-high"
+    if "medium" in label:
+        return "tg-badge-medium"
+    if "low" in label:
+        return "tg-badge-low"
+    return "tg-badge-unknown"
 
 
-def format_badge(label: str | None) -> str:
-    text = str(label or "UNKNOWN").replace("_", " ").upper()
-    return text if text.strip() else "UNKNOWN"
+def badge_to_css_class(badge: str | None) -> str:
+    label = str(badge or "").lower()
+    if any(token in label for token in ("critical", "official", "blocked")):
+        return "tg-badge-critical"
+    if any(token in label for token in ("high", "verify")):
+        return "tg-badge-high"
+    if any(token in label for token in ("outdated", "corrected", "caution", "medium")):
+        return "tg-badge-medium"
+    if any(token in label for token in ("low", "review")):
+        return "tg-badge-low"
+    if any(token in label for token in ("safe", "supported", "current")):
+        return "tg-badge-safe"
+    return "tg-badge-unknown"
+
+
+def format_label(label: Any, fallback: str = "Unknown") -> str:
+    text = str(label if label not in (None, "") else fallback).replace("_", " ").replace("-", " ")
+    return " ".join(text.split()).title()
+
+
+def format_badge(label: Any) -> str:
+    text = str(label if label not in (None, "") else "UNKNOWN").replace("_", " ").strip()
+    return text.upper() if text else "UNKNOWN"
 
 
 def get_final_answer(pipeline_output: dict[str, Any] | None) -> str:
     return str(
         safe_get(pipeline_output, ["correction", "corrected_answer"])
         or safe_get(pipeline_output, ["report", "final_answer"])
+        or safe_get(pipeline_output, ["final_answer"])
         or safe_get(pipeline_output, ["original_answer"])
         or ""
     )
@@ -45,16 +78,22 @@ def get_final_answer(pipeline_output: dict[str, Any] | None) -> str:
 
 def get_dashboard_summary(pipeline_output: dict[str, Any] | None) -> dict[str, Any]:
     risk_label = safe_get(pipeline_output, ["risk_label"], {}) or {}
-    report_summary = safe_get(pipeline_output, ["report", "dashboard_summary"], {}) or {}
+    dashboard = safe_get(pipeline_output, ["report", "dashboard_summary"], {}) or {}
+    correction = safe_get(pipeline_output, ["correction"], {}) or {}
+    badge = risk_label.get("dashboard_badge") or dashboard.get("badge") or "UNKNOWN"
+    risk = risk_label.get("final_risk_label") or dashboard.get("risk_label") or "unknown_risk"
+    warning = risk_label.get("user_warning") or dashboard.get("user_warning") or correction.get("safety_note")
     return {
-        "badge": risk_label.get("dashboard_badge") or report_summary.get("badge") or "UNKNOWN",
-        "risk_label": risk_label.get("final_risk_label") or report_summary.get("risk_label") or "unknown_risk",
-        "uncertainty_label": risk_label.get("uncertainty_label") or report_summary.get("uncertainty_label") or "unknown",
-        "trust_score": _as_float(risk_label.get("trust_score", report_summary.get("trust_score", 0.0))),
+        "badge": badge,
+        "badge_class": badge_to_css_class(badge),
+        "risk_label": risk,
+        "risk_class": risk_to_css_class(risk),
+        "uncertainty_label": risk_label.get("uncertainty_label") or dashboard.get("uncertainty_label") or "unknown",
+        "trust_score": _as_float(risk_label.get("trust_score", dashboard.get("trust_score", 0.0))),
         "temporal_safety_status": risk_label.get("temporal_safety_status")
-        or report_summary.get("temporal_safety_status")
+        or dashboard.get("temporal_safety_status")
         or "needs_more_evidence",
-        "user_warning": risk_label.get("user_warning") or report_summary.get("user_warning"),
+        "user_warning": warning,
     }
 
 
@@ -65,9 +104,13 @@ def get_pipeline_summary(pipeline_output: dict[str, Any] | None) -> dict[str, An
         or report_summary.get("temporal_category")
         or "UNKNOWN",
         "needs_fresh_evidence": bool(
-            safe_get(pipeline_output, ["temporal_detection", "needs_fresh_evidence"], report_summary.get("needs_fresh_evidence", False))
+            safe_get(
+                pipeline_output,
+                ["temporal_detection", "needs_fresh_evidence"],
+                report_summary.get("needs_fresh_evidence", False),
+            )
         ),
-        "total_claims": int(safe_get(pipeline_output, ["claims", "total_claims"], report_summary.get("total_claims", 0)) or 0),
+        "total_claims": _as_int(safe_get(pipeline_output, ["claims", "total_claims"], report_summary.get("total_claims", 0))),
         "verification_status": safe_get(pipeline_output, ["verification", "overall_verification_status"])
         or report_summary.get("verification_status")
         or "UNKNOWN",
@@ -86,37 +129,37 @@ def get_pipeline_summary(pipeline_output: dict[str, Any] | None) -> dict[str, An
 
 def build_metric_cards(pipeline_output: dict[str, Any] | None) -> list[dict[str, str]]:
     summary = get_pipeline_summary(pipeline_output)
-    trust = get_dashboard_summary(pipeline_output)["trust_score"]
+    dashboard = get_dashboard_summary(pipeline_output)
     return [
         {
             "label": "Temporal Category",
-            "value": str(summary["temporal_category"]),
-            "caption": "Fresh evidence required" if summary["needs_fresh_evidence"] else "Stable or optional",
+            "value": format_label(summary["temporal_category"]),
+            "caption": "Fresh evidence required" if summary["needs_fresh_evidence"] else "Stable knowledge",
         },
         {
             "label": "Outdatedness",
-            "value": str(summary["outdatedness_status"]),
-            "caption": "Answer-level decision",
+            "value": format_label(summary["outdatedness_status"]),
+            "caption": "Answer-level temporal decision",
         },
         {
             "label": "Verification",
-            "value": str(summary["verification_status"]),
-            "caption": "Claim-level status",
+            "value": format_label(summary["verification_status"]),
+            "caption": f"{summary['total_claims']} extracted claim(s)",
         },
         {
             "label": "Correction",
-            "value": str(summary["correction_status"]),
-            "caption": "Final answer handling",
+            "value": format_label(summary["correction_status"]),
+            "caption": "Final response handling",
         },
         {
             "label": "Trust Score",
-            "value": f"{trust:.2f}",
-            "caption": "Final confidence signal",
+            "value": f"{dashboard['trust_score']:.2f}",
+            "caption": "Reliability signal after checks",
         },
         {
             "label": "Freshness Score",
             "value": f"{summary['freshness_score']:.2f}",
-            "caption": "Evidence timing quality",
+            "caption": "Temporal quality of evidence",
         },
     ]
 
@@ -130,14 +173,12 @@ def claims_to_table_rows(pipeline_output: dict[str, Any] | None) -> list[dict[st
     verification = {
         str(item.get("claim_id")): item
         for item in safe_get(pipeline_output, ["verification", "verification_results"], [])
-        if isinstance(item, dict) and item.get("claim_id")
+        if isinstance(item, dict) and item.get("claim_id") is not None
     }
     rows: list[dict[str, Any]] = []
     for claim in claims if isinstance(claims, list) else []:
-        if not isinstance(claim, dict):
-            continue
-        ver = verification.get(str(claim.get("claim_id")), {})
-        rows.append(_claim_row({**claim, **ver}))
+        if isinstance(claim, dict):
+            rows.append(_claim_row({**claim, **verification.get(str(claim.get("claim_id")), {})}))
     return rows
 
 
@@ -155,184 +196,68 @@ def evidence_to_table_rows(pipeline_output: dict[str, Any] | None) -> list[dict[
         claim_id = str(result.get("claim_id") or "")
         items = result.get("evidence_items", [])
         for item in items if isinstance(items, list) else []:
-            if not isinstance(item, dict):
-                continue
-            score = score_map.get((claim_id, str(item.get("evidence_id") or "")), {})
-            rows.append(_evidence_row({**item, **score, "claim_id": claim_id}))
+            if isinstance(item, dict):
+                score = score_map.get((claim_id, str(item.get("evidence_id") or "")), {})
+                rows.append(_evidence_row({**item, **score, "claim_id": claim_id}))
     return rows
 
 
 def build_demo_output(question: str, base_answer: str | None = None) -> dict[str, Any]:
-    q = question.strip() or "What is the latest Python version?"
+    q = (question or "").strip() or SAMPLE_QUESTIONS[0]
     lower = q.lower()
     if "binary search" in lower:
-        original = base_answer or "Binary search divides a sorted search space in half."
-        corrected = original
-        badge = "SAFE"
-        risk = "safe"
-        temporal_category = "STATIC"
-        outdatedness = "NOT_OUTDATED"
-        verification_status = "SUPPORTED"
-        correction_status = "no_correction_needed"
-        trust = 0.91
-        warning = None
-        claims = [
-            {
-                "claim_id": "C1",
-                "claim_text": "Binary search divides a sorted search space in half.",
-                "claim_type": "definition",
-            }
-        ]
+        demo = _demo_binary_search()
     elif "visa" in lower:
-        original = base_answer or "Yes, this visa rule is still active."
-        corrected = (
-            "I could not safely verify whether this visa rule is still active from the available evidence. "
-            "Because visa rules can change and affect real decisions, check the official government source before action."
-        )
-        badge = "CRITICAL - VERIFY OFFICIAL SOURCE"
-        risk = "critical_risk"
-        temporal_category = "RECENT_ONLY"
-        outdatedness = "UNVERIFIED_RISKY"
-        verification_status = "INSUFFICIENT_EVIDENCE"
-        correction_status = "unable_to_correct"
-        trust = 0.25
-        warning = "This is a high-risk visa or policy-related question. Verify with an official source before action."
-        claims = [{"claim_id": "C1", "claim_text": "This visa rule is still active.", "claim_type": "law_or_policy"}]
+        demo = _demo_visa_rule()
+    elif "2014" in lower or "world cup" in lower:
+        demo = _demo_world_cup()
+    elif "ceo of openai" in lower or ("openai" in lower and "ceo" in lower):
+        demo = _demo_openai_ceo()
+    elif "openai api" in lower:
+        demo = _demo_openai_api()
     else:
-        original = base_answer or "Python 3.10 is the latest stable version of Python."
-        corrected = (
-            "Python 3.10 is not the latest stable Python version. "
-            "Based on the checked evidence, Python 3.13.5 is listed as the latest release."
-        )
-        badge = "OUTDATED - CORRECTED"
-        risk = "medium_risk"
-        temporal_category = "RECENT_ONLY"
-        outdatedness = "OUTDATED"
-        verification_status = "OUTDATED"
-        correction_status = "corrected"
-        trust = 0.93
-        warning = "This answer was updated using checked evidence, but software versions can change again."
-        claims = [
-            {
-                "claim_id": "C1",
-                "claim_text": "Python 3.10 is the latest stable version of Python.",
-                "claim_type": "software_version",
-            }
-        ]
+        demo = _demo_latest_python()
 
-    return _demo_payload(
-        question=q,
-        original_answer=original,
-        corrected_answer=corrected,
-        badge=badge,
-        risk=risk,
-        trust=trust,
-        warning=warning,
-        temporal_category=temporal_category,
-        outdatedness=outdatedness,
-        verification_status=verification_status,
-        correction_status=correction_status,
-        claims=claims,
-    )
+    demo = deepcopy(demo)
+    demo["question"] = q
+    if base_answer:
+        demo["original_answer"] = base_answer
+        first_claim = safe_get(demo, ["claims", "claims"], [{}])
+        if isinstance(first_claim, list) and first_claim and isinstance(first_claim[0], dict):
+            first_claim[0]["claim_text"] = base_answer
+        claim_report = safe_get(demo, ["report", "claim_report"], [])
+        if isinstance(claim_report, list) and claim_report and isinstance(claim_report[0], dict):
+            claim_report[0]["Claim Text"] = base_answer
+    return demo
 
 
 def build_dashboard_state(context: dict[str, Any] | None = None) -> dict[str, Any]:
     return dict(context or {})
 
 
-def inject_custom_css() -> None:
-    import streamlit as st
-
-    st.markdown(
-        """
-        <style>
-        :root {
-          --tg-bg: #f8fafc;
-          --tg-card: #ffffff;
-          --tg-border: #e5e7eb;
-          --tg-text: #0f172a;
-          --tg-muted: #64748b;
-          --tg-primary: #2563eb;
-          --tg-success: #16a34a;
-          --tg-warning: #d97706;
-          --tg-danger: #dc2626;
-          --tg-critical: #991b1b;
-        }
-        .stApp { background: var(--tg-bg); color: var(--tg-text); }
-        section[data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid var(--tg-border); }
-        .hero-card {
-          background: linear-gradient(135deg, #ffffff 0%, #eef6ff 100%);
-          border: 1px solid var(--tg-border);
-          border-radius: 18px;
-          padding: 32px 34px;
-          box-shadow: 0 18px 45px rgba(15, 23, 42, 0.07);
-          margin-bottom: 22px;
-        }
-        .hero-title { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: 0; margin: 0 0 12px; }
-        .hero-subtitle { color: var(--tg-muted); font-size: 17px; max-width: 760px; margin-bottom: 18px; }
-        .feature-chip {
-          display: inline-block; padding: 7px 11px; margin: 0 8px 8px 0; border-radius: 999px;
-          background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 13px; font-weight: 650;
-        }
-        .result-card, .input-card, .code-card, .warning-card {
-          background: var(--tg-card);
-          border: 1px solid var(--tg-border);
-          border-radius: 14px;
-          padding: 22px;
-          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.055);
-          margin-bottom: 18px;
-        }
-        .result-answer { font-size: 18px; line-height: 1.65; color: var(--tg-text); }
-        .metric-card {
-          background: #ffffff; border: 1px solid var(--tg-border); border-radius: 14px; padding: 18px;
-          min-height: 118px; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.045);
-        }
-        .metric-label { color: var(--tg-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-        .metric-value { color: var(--tg-text); font-size: 22px; font-weight: 800; margin-top: 8px; overflow-wrap: anywhere; }
-        .metric-caption { color: var(--tg-muted); font-size: 13px; margin-top: 8px; }
-        .risk-badge {
-          display: inline-flex; align-items: center; border-radius: 999px; padding: 8px 12px;
-          font-size: 12px; font-weight: 800; letter-spacing: .035em; border: 1px solid transparent;
-        }
-        .badge-safe { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
-        .badge-low { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-        .badge-medium { background: #fffbeb; color: #92400e; border-color: #fde68a; }
-        .badge-high { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-        .badge-critical { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-        .badge-unknown { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
-        .section-title { font-size: 19px; font-weight: 800; margin: 4px 0 12px; }
-        .muted-text { color: var(--tg-muted); font-size: 14px; }
-        .warning-card { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
-        div[data-testid="stDataFrame"] { border: 1px solid var(--tg-border); border-radius: 12px; overflow: hidden; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def _claim_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "Claim ID": row.get("claim_id", ""),
-        "Claim Text": row.get("claim_text", ""),
-        "Claim Type": row.get("claim_type"),
-        "Verification Status": row.get("verification_status"),
-        "Risk Level": row.get("risk_level"),
-        "Claim Value": row.get("claim_value"),
-        "Evidence Value": row.get("evidence_value"),
-        "Requires Correction": bool(row.get("requires_correction", False)),
+        "Claim ID": row.get("claim_id", row.get("Claim ID", "")),
+        "Claim Text": row.get("claim_text", row.get("Claim Text", "")),
+        "Claim Type": row.get("claim_type", row.get("Claim Type", "")),
+        "Verification": row.get("verification_status", row.get("verification", row.get("Verification", ""))),
+        "Risk": row.get("risk_level", row.get("risk", row.get("Risk", ""))),
+        "Claim Value": row.get("claim_value", row.get("Claim Value", "")),
+        "Evidence Value": row.get("evidence_value", row.get("Evidence Value", "")),
+        "Correction": row.get("correction", row.get("requires_correction", row.get("Correction", ""))),
     }
 
 
 def _evidence_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "Evidence ID": row.get("evidence_id", ""),
-        "Claim ID": row.get("claim_id", ""),
-        "Title": row.get("title", ""),
-        "Publisher": row.get("publisher", "unknown"),
-        "Source Type": row.get("source_type", "other"),
-        "Freshness Label": row.get("freshness_label"),
-        "Combined Score": _as_float(row.get("combined_score", 0.0)),
-        "URL": row.get("url", ""),
+        "Evidence ID": row.get("evidence_id", row.get("Evidence ID", "")),
+        "Claim ID": row.get("claim_id", row.get("Claim ID", "")),
+        "Title": row.get("title", row.get("Title", "")),
+        "Publisher": row.get("publisher", row.get("Publisher", "Unknown")),
+        "Source Type": row.get("source_type", row.get("type", row.get("Source Type", "other"))),
+        "Freshness": row.get("freshness_label", row.get("freshness", row.get("Freshness", ""))),
+        "Score": _as_float(row.get("combined_score", row.get("score", row.get("Score", 0.0)))),
+        "URL": row.get("url", row.get("URL", "")),
     }
 
 
@@ -350,6 +275,197 @@ def _freshness_score_map(pipeline_output: dict[str, Any] | None) -> dict[tuple[s
     return score_map
 
 
+def _demo_latest_python() -> dict[str, Any]:
+    return _demo_payload(
+        question="What is the latest Python version?",
+        original_answer="Python 3.10 is the latest stable version of Python.",
+        corrected_answer=(
+            "Python 3.10 is outdated as a latest-version answer. Based on the checked release evidence, "
+            "Python 3.13.5 is the current stable Python release in this demo snapshot."
+        ),
+        badge="OUTDATED - CORRECTED",
+        risk="medium_risk",
+        trust=0.93,
+        temporal_category="RECENT_ONLY",
+        outdatedness="OUTDATED",
+        verification_status="OUTDATED",
+        correction_status="corrected",
+        warning="Software release answers change over time; verify the release page before publishing.",
+        claims=[
+            _claim("C1", "Python 3.10 is the latest stable version of Python.", "software_version", "OUTDATED", "medium", "Python 3.10", "Python 3.13.5", True)
+        ],
+        evidence=[
+            _evidence("E1", "C1", "Python Downloads", "Python Software Foundation", "official", "very_fresh", 0.98, "https://www.python.org/downloads/"),
+            _evidence("E2", "C1", "Python 3.13 Release Schedule", "Python Developer's Guide", "official", "fresh", 0.91, "https://peps.python.org/pep-0719/"),
+        ],
+        thesis={
+            "problem_observed": "The base answer presents an old software version as current.",
+            "temporal_failure_type": "Outdated latest-version claim.",
+            "evidence_quality": "Official release sources with high freshness.",
+            "system_decision": "Correct the answer and show with caution.",
+            "research_value": "Demonstrates temporal drift in software-version answers.",
+        },
+    )
+
+
+def _demo_binary_search() -> dict[str, Any]:
+    return _demo_payload(
+        question="What is binary search?",
+        original_answer="Binary search divides a sorted search space in half until the target is found or ruled out.",
+        corrected_answer="Binary search is a static algorithmic concept: it repeatedly halves a sorted search space to find a target in O(log n) time.",
+        badge="SAFE - STATIC KNOWLEDGE",
+        risk="safe",
+        trust=0.91,
+        temporal_category="STATIC",
+        outdatedness="NOT_OUTDATED",
+        verification_status="SUPPORTED",
+        correction_status="no_correction_needed",
+        warning=None,
+        claims=[
+            _claim("C1", "Binary search requires a sorted search space.", "definition", "SUPPORTED", "low", "sorted search space", "sorted input requirement", False),
+            _claim("C2", "Binary search runs in O(log n) time.", "algorithmic_complexity", "SUPPORTED", "low", "O(log n)", "O(log n)", False),
+        ],
+        evidence=[
+            _evidence("E1", "C1", "Binary Search", "CP-Algorithms", "reference", "stable", 0.86, "https://cp-algorithms.com/num_methods/binary_search.html"),
+            _evidence("E2", "C2", "Introduction to Algorithms: Search", "MIT OpenCourseWare", "academic", "stable", 0.84, "https://ocw.mit.edu/"),
+        ],
+        thesis={
+            "problem_observed": "No temporal failure detected.",
+            "temporal_failure_type": "Static knowledge.",
+            "evidence_quality": "Stable educational and reference sources.",
+            "system_decision": "Keep the answer with minor clarity improvement.",
+            "research_value": "Shows the system avoids unnecessary correction for non-temporal claims.",
+        },
+    )
+
+
+def _demo_visa_rule() -> dict[str, Any]:
+    return _demo_payload(
+        question="Is this visa rule still active?",
+        original_answer="Yes, this visa rule is still active.",
+        corrected_answer=(
+            "I cannot safely confirm that this visa rule is still active from the available evidence. "
+            "Visa and immigration rules are high-impact and can change without notice, so use the official government source before making a decision."
+        ),
+        badge="CRITICAL - VERIFY OFFICIAL SOURCE",
+        risk="critical_risk",
+        trust=0.24,
+        temporal_category="RECENT_ONLY",
+        outdatedness="UNVERIFIED_RISKY",
+        verification_status="INSUFFICIENT_EVIDENCE",
+        correction_status="unable_to_correct",
+        warning="High-impact policy question: verify with an official immigration authority before action.",
+        claims=[
+            _claim("C1", "This visa rule is still active.", "law_or_policy", "INSUFFICIENT_EVIDENCE", "critical", "active", "not verified", True)
+        ],
+        evidence=[
+            _evidence("E1", "C1", "Official Immigration Rule Index", "Government Portal", "official", "unknown", 0.42, "https://example.gov/immigration"),
+            _evidence("E2", "C1", "Archived Visa Guidance", "Embassy Archive", "official_archive", "stale", 0.31, "https://example.gov/archive"),
+        ],
+        thesis={
+            "problem_observed": "The base answer makes a current legal-status claim without verified current evidence.",
+            "temporal_failure_type": "High-risk unverifiable policy claim.",
+            "evidence_quality": "Insufficient and possibly stale evidence.",
+            "system_decision": "Do not assert the answer; require official verification.",
+            "research_value": "Demonstrates risk-aware handling for high-impact temporal claims.",
+        },
+    )
+
+
+def _demo_world_cup() -> dict[str, Any]:
+    return _demo_payload(
+        question="Who won the 2014 FIFA World Cup?",
+        original_answer="France won the 2014 FIFA World Cup.",
+        corrected_answer="Germany won the 2014 FIFA World Cup, defeating Argentina 1-0 in the final.",
+        badge="INCORRECT - CORRECTED",
+        risk="low_risk",
+        trust=0.96,
+        temporal_category="HISTORICAL_STATIC",
+        outdatedness="FACTUALLY_INCORRECT",
+        verification_status="CONTRADICTED",
+        correction_status="corrected",
+        warning=None,
+        claims=[
+            _claim("C1", "France won the 2014 FIFA World Cup.", "historical_fact", "CONTRADICTED", "low", "France", "Germany", True)
+        ],
+        evidence=[
+            _evidence("E1", "C1", "2014 FIFA World Cup Final", "FIFA", "official", "stable", 0.97, "https://www.fifa.com/"),
+            _evidence("E2", "C1", "2014 FIFA World Cup", "Encyclopaedia Britannica", "reference", "stable", 0.89, "https://www.britannica.com/"),
+        ],
+        thesis={
+            "problem_observed": "The answer is not outdated but contradicts stable historical evidence.",
+            "temporal_failure_type": "Static factual contradiction.",
+            "evidence_quality": "Official and reference sources agree.",
+            "system_decision": "Correct the entity and mark as low temporal risk.",
+            "research_value": "Shows the dashboard can separate temporal risk from factual correction.",
+        },
+    )
+
+
+def _demo_openai_ceo() -> dict[str, Any]:
+    return _demo_payload(
+        question="Who is the CEO of OpenAI?",
+        original_answer="Mira Murati is the CEO of OpenAI.",
+        corrected_answer="Sam Altman is the CEO of OpenAI in this demo snapshot; leadership answers should be checked against OpenAI's current company information.",
+        badge="OUTDATED - CORRECTED",
+        risk="medium_risk",
+        trust=0.88,
+        temporal_category="RECENT_ONLY",
+        outdatedness="OUTDATED",
+        verification_status="OUTDATED",
+        correction_status="corrected",
+        warning="Company leadership can change; verify against the organization's current official page.",
+        claims=[
+            _claim("C1", "Mira Murati is the CEO of OpenAI.", "current_organization_role", "OUTDATED", "medium", "Mira Murati", "Sam Altman", True)
+        ],
+        evidence=[
+            _evidence("E1", "C1", "OpenAI Leadership", "OpenAI", "official", "fresh", 0.9, "https://openai.com/"),
+            _evidence("E2", "C1", "OpenAI Company Profile", "Company Registry Demo", "reference", "recent", 0.78, "https://example.com/openai-profile"),
+        ],
+        thesis={
+            "problem_observed": "The base answer relies on stale leadership information.",
+            "temporal_failure_type": "Current-role drift.",
+            "evidence_quality": "Official organizational source preferred.",
+            "system_decision": "Correct with a freshness caveat.",
+            "research_value": "Demonstrates current-entity verification for LLM answers.",
+        },
+    )
+
+
+def _demo_openai_api() -> dict[str, Any]:
+    return _demo_payload(
+        question="How do I use the OpenAI API in Python?",
+        original_answer="Install openai and call openai.Completion.create with a text-davinci model.",
+        corrected_answer=(
+            "Use the current OpenAI Python SDK client pattern for new projects: create a client, call the Responses API or another current endpoint, "
+            "and keep the API key in an environment variable rather than source code."
+        ),
+        badge="STALE API PATTERN - UPDATED",
+        risk="medium_risk",
+        trust=0.86,
+        temporal_category="RECENT_ONLY",
+        outdatedness="PARTIALLY_OUTDATED",
+        verification_status="NEEDS_UPDATE",
+        correction_status="corrected",
+        warning="API SDK patterns change; verify against the current official OpenAI documentation before shipping code.",
+        claims=[
+            _claim("C1", "Use openai.Completion.create for new Python applications.", "api_usage", "OUTDATED", "medium", "Completion.create", "current SDK client pattern", True),
+            _claim("C2", "Store API keys outside source code.", "security_practice", "SUPPORTED", "low", "environment variable", "environment variable", False),
+        ],
+        evidence=[
+            _evidence("E1", "C1", "OpenAI API Documentation", "OpenAI", "official", "fresh", 0.92, "https://platform.openai.com/docs"),
+            _evidence("E2", "C2", "OpenAI API Key Safety", "OpenAI", "official", "fresh", 0.88, "https://help.openai.com/"),
+        ],
+        thesis={
+            "problem_observed": "The answer uses an older SDK pattern for a rapidly changing API.",
+            "temporal_failure_type": "Developer documentation drift.",
+            "evidence_quality": "Official docs are required for implementation guidance.",
+            "system_decision": "Update the pattern and add a verification warning.",
+            "research_value": "Shows practical temporal correction for developer-tool answers.",
+        },
+    )
+
+
 def _demo_payload(
     question: str,
     original_answer: str,
@@ -357,41 +473,191 @@ def _demo_payload(
     badge: str,
     risk: str,
     trust: float,
-    warning: str | None,
     temporal_category: str,
     outdatedness: str,
     verification_status: str,
     correction_status: str,
+    warning: str | None,
     claims: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+    thesis: dict[str, str],
 ) -> dict[str, Any]:
-    evidence_items = [] if outdatedness == "UNVERIFIED_RISKY" else [
+    evidence_by_claim: dict[str, list[dict[str, Any]]] = {}
+    freshness_by_claim: dict[str, list[dict[str, Any]]] = {}
+    for item in evidence:
+        claim_id = str(item["claim_id"])
+        evidence_by_claim.setdefault(claim_id, []).append(
+            {
+                "evidence_id": item["evidence_id"],
+                "title": item["title"],
+                "url": item["url"],
+                "publisher": item["publisher"],
+                "source_type": item["source_type"],
+                "evidence_summary": f"{item['publisher']} evidence for {claim_id}.",
+            }
+        )
+        freshness_by_claim.setdefault(claim_id, []).append(
+            {
+                "evidence_id": item["evidence_id"],
+                "freshness_label": item["freshness_label"],
+                "combined_score": item["combined_score"],
+            }
+        )
+
+    verification_results = [
         {
-            "evidence_id": "E1",
-            "title": "Demo evidence source",
-            "url": "https://example.com/demo-source",
-            "publisher": "TemporalGuard Demo",
-            "source_type": "official" if risk != "safe" else "academic",
-            "evidence_summary": "Demo evidence used to illustrate the dashboard layout.",
+            "claim_id": claim["claim_id"],
+            "verification_status": claim["verification_status"],
+            "risk_level": claim["risk_level"],
+            "claim_value": claim["claim_value"],
+            "evidence_value": claim["evidence_value"],
+            "requires_correction": claim["requires_correction"],
+            "correction": "Update claim" if claim["requires_correction"] else "No correction needed",
         }
+        for claim in claims
     ]
+    safety = "safe_to_show" if risk == "safe" else ("needs_official_verification" if "critical" in risk else "show_with_caution")
     return {
         "run_id": "DEMO_RUN",
         "question": question,
         "original_answer": original_answer,
-        "temporal_detection": {"temporal_category": temporal_category, "needs_fresh_evidence": temporal_category != "STATIC"},
+        "temporal_detection": {
+            "temporal_category": temporal_category,
+            "needs_fresh_evidence": temporal_category not in {"STATIC", "HISTORICAL_STATIC"},
+            "reason": "Demo classification generated for frontend presentation.",
+        },
         "claims": {"claims": claims, "total_claims": len(claims)},
-        "evidence": {"evidence_results": [{"claim_id": "C1", "evidence_items": evidence_items}], "total_evidence_items": len(evidence_items)},
-        "freshness": {"overall_freshness_score": trust, "overall_temporal_risk": "low" if risk == "safe" else "medium"},
-        "verification": {"overall_verification_status": verification_status, "verification_results": [{"claim_id": "C1", "verification_status": verification_status, "risk_level": "low" if risk == "safe" else "high", "requires_correction": correction_status == "corrected", "claim_value": "Python 3.10" if correction_status == "corrected" else None, "evidence_value": "Python 3.13.5" if correction_status == "corrected" else None}]},
-        "outdatedness": {"outdatedness_status": outdatedness, "answer_temporal_risk": risk.replace("_risk", ""), "requires_correction": correction_status != "no_correction_needed"},
-        "correction": {"corrected_answer": corrected_answer, "correction_status": correction_status, "changed_claim_ids": ["C1"] if correction_status == "corrected" else [], "unsupported_claim_ids": ["C1"] if correction_status == "unable_to_correct" else [], "freshness_note": "Demo output uses fixed illustrative evidence.", "uncertainty_note": warning if correction_status == "unable_to_correct" else None, "safety_note": warning if "visa" in question.lower() else None, "user_visible_explanation": "Demo result generated without calling external services."},
-        "risk_label": {"dashboard_badge": badge, "final_risk_label": risk, "uncertainty_label": "low" if trust >= 0.75 else "very_high", "trust_score": trust, "temporal_safety_status": "safe_to_show" if risk == "safe" else "show_with_caution", "user_warning": warning},
-        "report": {"executive_summary": "Demo mode shows a realistic TemporalGuard result without requiring a backend.", "final_answer": corrected_answer, "claim_report": [], "evidence_report": [], "dashboard_summary": {"badge": badge, "risk_label": risk, "trust_score": trust, "temporal_safety_status": "safe_to_show" if risk == "safe" else "show_with_caution", "user_warning": warning}, "thesis_summary": {"problem_observed": "Demo output for presentation.", "temporal_failure_type": "demo", "evidence_quality": "Illustrative only.", "system_decision": f"Demo status: {outdatedness}.", "research_value": "Useful for showing the dashboard before backend setup."}},
+        "evidence": {
+            "evidence_results": [
+                {"claim_id": claim_id, "evidence_items": items} for claim_id, items in evidence_by_claim.items()
+            ],
+            "total_evidence_items": len(evidence),
+        },
+        "freshness": {
+            "overall_freshness_score": trust,
+            "overall_temporal_risk": "low" if trust >= 0.85 else "high",
+            "freshness_results": [
+                {"claim_id": claim_id, "evidence_scores": scores} for claim_id, scores in freshness_by_claim.items()
+            ],
+        },
+        "verification": {
+            "overall_verification_status": verification_status,
+            "verification_results": verification_results,
+        },
+        "outdatedness": {
+            "outdatedness_status": outdatedness,
+            "answer_temporal_risk": risk.replace("_risk", ""),
+            "requires_correction": correction_status not in {"no_correction_needed"},
+            "main_issue": thesis["problem_observed"],
+        },
+        "correction": {
+            "corrected_answer": corrected_answer,
+            "correction_status": correction_status,
+            "changed_claim_ids": [claim["claim_id"] for claim in claims if claim["requires_correction"]],
+            "unsupported_claim_ids": [claim["claim_id"] for claim in claims if claim["verification_status"] == "INSUFFICIENT_EVIDENCE"],
+            "freshness_note": "Demo mode uses curated illustrative evidence for UI validation.",
+            "uncertainty_note": warning,
+            "safety_note": warning,
+            "user_visible_explanation": "This demo result was generated locally without calling external services.",
+        },
+        "risk_label": {
+            "dashboard_badge": badge,
+            "final_risk_label": risk,
+            "uncertainty_label": "low" if trust >= 0.85 else "high",
+            "trust_score": trust,
+            "temporal_safety_status": safety,
+            "user_warning": warning,
+        },
+        "report": {
+            "executive_summary": _executive_summary(outdatedness, correction_status, trust),
+            "final_answer": corrected_answer,
+            "claim_report": [_claim_row(claim) for claim in claims],
+            "evidence_report": [_evidence_row(item) for item in evidence],
+            "dashboard_summary": {
+                "badge": badge,
+                "risk_label": risk,
+                "trust_score": trust,
+                "temporal_safety_status": safety,
+                "user_warning": warning,
+            },
+            "pipeline_summary": {
+                "temporal_category": temporal_category,
+                "needs_fresh_evidence": temporal_category not in {"STATIC", "HISTORICAL_STATIC"},
+                "total_claims": len(claims),
+                "verification_status": verification_status,
+                "outdatedness_status": outdatedness,
+                "correction_status": correction_status,
+                "final_risk_label": risk,
+            },
+            "thesis_summary": thesis,
+        },
         "pipeline_status": "success",
         "errors": [],
-        "warnings": [],
+        "warnings": ["Demo mode uses curated mock evidence."] if warning else [],
     }
 
 
+def _claim(
+    claim_id: str,
+    text: str,
+    claim_type: str,
+    verification: str,
+    risk: str,
+    claim_value: str,
+    evidence_value: str,
+    requires_correction: bool,
+) -> dict[str, Any]:
+    return {
+        "claim_id": claim_id,
+        "claim_text": text,
+        "claim_type": claim_type,
+        "verification_status": verification,
+        "risk_level": risk,
+        "claim_value": claim_value,
+        "evidence_value": evidence_value,
+        "requires_correction": requires_correction,
+        "correction": "Update claim" if requires_correction else "No correction needed",
+    }
+
+
+def _evidence(
+    evidence_id: str,
+    claim_id: str,
+    title: str,
+    publisher: str,
+    source_type: str,
+    freshness_label: str,
+    score: float,
+    url: str,
+) -> dict[str, Any]:
+    return {
+        "evidence_id": evidence_id,
+        "claim_id": claim_id,
+        "title": title,
+        "publisher": publisher,
+        "source_type": source_type,
+        "freshness_label": freshness_label,
+        "combined_score": score,
+        "url": url,
+    }
+
+
+def _executive_summary(outdatedness: str, correction_status: str, trust: float) -> str:
+    return (
+        f"TemporalGuard classified the answer as {format_label(outdatedness).lower()} and "
+        f"set correction handling to {format_label(correction_status).lower()} with a trust score of {trust:.2f}."
+    )
+
+
 def _as_float(value: Any) -> float:
-    return float(value) if isinstance(value, int | float) else 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
