@@ -16,7 +16,7 @@ SAMPLE_QUESTIONS = [
 ]
 
 LLM_PROVIDER_OPTIONS = {
-    "Demo/mock": "mock",
+    "Mock provider": "mock",
     "OpenAI": "openai",
     "Gemini": "gemini",
     "Claude/Anthropic": "anthropic",
@@ -35,13 +35,14 @@ def safe_get(data: dict[str, Any] | None, path: list[str], default: Any = None) 
 
 
 def normalize_llm_provider(value: Any) -> str:
-    text = str(value or "Demo/mock").strip()
+    text = str(value or "Mock provider").strip()
     if text in LLM_PROVIDER_OPTIONS:
         return LLM_PROVIDER_OPTIONS[text]
     lowered = text.lower()
     aliases = {
         "demo": "mock",
         "demo/mock": "mock",
+        "mock provider": "mock",
         "mock": "mock",
         "openai": "openai",
         "gpt": "openai",
@@ -328,7 +329,7 @@ def _demo_latest_python() -> dict[str, Any]:
         original_answer="Python 3.10 is the latest stable version of Python.",
         corrected_answer=(
             "Python 3.10 is outdated as a latest-version answer. Based on the checked release evidence, "
-            "Python 3.13.5 is the current stable Python release in this demo snapshot."
+            "Python 3.13.5 is the current stable Python release in this reference scenario."
         ),
         badge="OUTDATED - CORRECTED",
         risk="medium_risk",
@@ -453,7 +454,7 @@ def _demo_openai_ceo() -> dict[str, Any]:
     return _demo_payload(
         question="Who is the CEO of OpenAI?",
         original_answer="Mira Murati is the CEO of OpenAI.",
-        corrected_answer="Sam Altman is the CEO of OpenAI in this demo snapshot; leadership answers should be checked against OpenAI's current company information.",
+        corrected_answer="Sam Altman is the CEO of OpenAI in this reference scenario; leadership answers should be checked against OpenAI's current company information.",
         badge="OUTDATED - CORRECTED",
         risk="medium_risk",
         trust=0.88,
@@ -467,7 +468,7 @@ def _demo_openai_ceo() -> dict[str, Any]:
         ],
         evidence=[
             _evidence("E1", "C1", "OpenAI Leadership", "OpenAI", "official", "fresh", 0.9, "https://openai.com/"),
-            _evidence("E2", "C1", "OpenAI Company Profile", "Company Registry Demo", "reference", "recent", 0.78, "https://example.com/openai-profile"),
+            _evidence("E2", "C1", "OpenAI Company Profile", "Company Registry", "reference", "recent", 0.78, "https://example.com/openai-profile"),
         ],
         thesis={
             "problem_observed": "The base answer relies on stale leadership information.",
@@ -605,7 +606,7 @@ def _demo_payload(
             "freshness_note": "Demo mode uses curated illustrative evidence for UI validation.",
             "uncertainty_note": warning,
             "safety_note": warning,
-            "user_visible_explanation": "This demo result was generated locally without calling external services.",
+            "user_visible_explanation": "This result was generated locally without calling external services.",
         },
         "risk_label": {
             "dashboard_badge": badge,

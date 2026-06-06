@@ -358,28 +358,129 @@ def inject_premium_css() -> None:
           .tg-result-header { flex-direction: column; }
         }
 
-        /* UX simplification overrides */
+        /* Enterprise product UI overrides */
+        html, body, .stApp {
+          background:
+            radial-gradient(circle at 16% 8%, rgba(34, 211, 238, 0.15), transparent 28%),
+            radial-gradient(circle at 88% 10%, rgba(99, 102, 241, 0.15), transparent 26%),
+            linear-gradient(135deg, #030712 0%, #07111f 48%, #0f172a 100%);
+        }
+        .stApp::before {
+          background:
+            radial-gradient(circle at 22% 20%, rgba(56, 189, 248, 0.11), transparent 26%),
+            radial-gradient(circle at 72% 12%, rgba(139, 92, 246, 0.12), transparent 24%);
+          filter: blur(10px);
+        }
         .block-container {
-          max-width: 1080px;
-          padding-top: 1.2rem;
+          max-width: 1160px;
+          padding-top: 1.25rem;
           padding-bottom: 2rem;
         }
+        section[data-testid="stSidebar"] {
+          overflow-y: auto !important;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(56, 189, 248, .45) rgba(15, 23, 42, .55);
+        }
+        section[data-testid="stSidebar"] > div {
+          max-height: 100vh;
+          overflow-y: auto;
+          padding-bottom: 24px;
+        }
+        section[data-testid="stSidebar"]::-webkit-scrollbar,
+        section[data-testid="stSidebar"] > div::-webkit-scrollbar {
+          width: 8px;
+        }
+        section[data-testid="stSidebar"]::-webkit-scrollbar-thumb,
+        section[data-testid="stSidebar"] > div::-webkit-scrollbar-thumb {
+          background: rgba(56, 189, 248, .42);
+          border-radius: 999px;
+        }
+        section[data-testid="stSidebar"] [data-testid="stExpander"] {
+          border: 1px solid rgba(148, 163, 184, .18);
+          border-radius: var(--tg-radius);
+          background: rgba(15, 23, 42, .5);
+        }
+        .tg-sidebar-brand {
+          padding: 16px;
+          margin: 4px 0 14px;
+          border: 1px solid rgba(148, 163, 184, .2);
+          border-radius: var(--tg-radius);
+          background: linear-gradient(180deg, rgba(30, 41, 59, .78), rgba(15, 23, 42, .72));
+        }
+        .tg-sidebar-title {
+          color: #f8fafc;
+          font-size: 22px;
+          line-height: 1.1;
+          font-weight: 850;
+          margin-bottom: 8px;
+        }
+        .tg-sidebar-section {
+          color: #e0f2fe;
+          font-size: 12px;
+          font-weight: 850;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          margin: 18px 0 8px;
+        }
         .tg-hero {
-          grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
-          gap: 14px;
-          margin-bottom: 14px;
+          display: block;
+          margin-bottom: 16px;
+        }
+        .tg-product-header {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(148, 163, 184, .2);
+          border-radius: var(--tg-radius);
+          padding: 26px;
+          background:
+            linear-gradient(135deg, rgba(14, 165, 233, .16), rgba(79, 70, 229, .12)),
+            linear-gradient(180deg, rgba(15, 23, 42, .9), rgba(15, 23, 42, .68));
+          box-shadow: 0 20px 56px rgba(2, 6, 23, .32);
+          animation: tgFadeUp .55s ease both;
+        }
+        .tg-product-header::after {
+          content: "";
+          position: absolute;
+          inset: auto -12% -50% 48%;
+          height: 170px;
+          background: radial-gradient(circle, rgba(56, 189, 248, .22), transparent 68%);
+          pointer-events: none;
         }
         .tg-card,
         .tg-glass-card {
-          background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.84));
-          box-shadow: 0 16px 42px rgba(2, 6, 23, 0.24);
+          background: linear-gradient(180deg, rgba(30, 41, 59, 0.84), rgba(15, 23, 42, 0.78));
+          box-shadow: 0 14px 38px rgba(2, 6, 23, 0.22);
           padding: 18px;
         }
-        .tg-help-card {
-          background: linear-gradient(180deg, rgba(14, 116, 144, .22), rgba(30, 41, 59, .86));
+        .tg-workspace-card,
+        .tg-empty-state,
+        .tg-summary-card {
+          border: 1px solid rgba(148, 163, 184, .22);
+          border-radius: var(--tg-radius);
+          background: linear-gradient(180deg, rgba(30, 41, 59, .86), rgba(15, 23, 42, .78));
+          box-shadow: 0 14px 40px rgba(2, 6, 23, .22);
+          padding: 18px;
+          margin-bottom: 14px;
+          animation: tgFadeUp .55s ease both;
+        }
+        .tg-summary-card {
+          margin-bottom: 12px;
+        }
+        .tg-summary-value,
+        .tg-empty-title,
+        .tg-input-title {
+          color: #f8fafc;
+          font-size: 22px;
+          font-weight: 850;
+          line-height: 1.25;
+          margin: 10px 0 8px;
+        }
+        .tg-summary-top {
+          margin-bottom: 8px;
         }
         .tg-hero-title {
-          font-size: 40px;
+          font-size: 42px;
+          margin-bottom: 8px;
         }
         .tg-hero-subtitle,
         .tg-answer-text {
@@ -405,49 +506,48 @@ def inject_premium_css() -> None:
         .tg-section-title {
           font-size: 14px;
         }
-        .tg-step-flow {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 8px;
-          margin: 10px 0 16px;
-        }
-        .tg-step {
-          border: 1px solid rgba(203, 213, 225, .18);
-          background: rgba(30, 41, 59, .72);
+        .tg-trust-pill {
+          text-align: right;
+          min-width: 110px;
+          border: 1px solid rgba(56, 189, 248, .24);
+          background: rgba(14, 165, 233, .08);
           border-radius: var(--tg-radius);
-          padding: 10px;
-          color: #cbd5e1;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          min-height: 48px;
-        }
-        .tg-step span {
-          width: 24px;
-          height: 24px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(56, 189, 248, .14);
-          color: #bae6fd;
-          font-weight: 850;
-        }
-        .tg-step strong {
-          font-size: 13px;
-          line-height: 1.25;
-        }
-        .tg-step-active {
-          border-color: rgba(56, 189, 248, .5);
-          background: rgba(14, 116, 144, .22);
+          padding: 10px 12px;
         }
         .stButton > button {
           min-height: 48px;
           font-size: 17px;
+          border-radius: 10px;
+          background-size: 180% 180%;
+          animation: tgGradientMove 12s ease infinite;
+        }
+        div[data-testid="stTextArea"] textarea {
+          min-height: 104px;
+          font-size: 16px !important;
+          line-height: 1.55 !important;
+        }
+        div[data-testid="stTextInput"] input {
+          font-size: 15px !important;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+          margin-top: 8px;
+        }
+        .stTabs [data-baseweb="tab"] {
+          font-weight: 760;
+          font-size: 15px;
+        }
+        .tg-footer {
+          opacity: .72;
         }
         @media (max-width: 900px) {
-          .tg-step-flow {
-            grid-template-columns: 1fr;
+          .tg-product-header {
+            padding: 20px;
+          }
+          .tg-hero-title {
+            font-size: 34px;
+          }
+          .tg-trust-pill {
+            text-align: left;
           }
         }
         </style>
