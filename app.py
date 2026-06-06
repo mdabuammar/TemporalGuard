@@ -98,6 +98,9 @@ def render_sidebar() -> dict[str, Any]:
         if run_mode == "Backend + Model API":
             st.info("Turn off provided base answer if you want OpenRouter to generate the answer.")
 
+        st.markdown("<div class='tg-sidebar-section'>Answer Source</div>", unsafe_allow_html=True)
+        use_base_answer = st.toggle("Use my own answer", value=run_mode != "Backend + Model API")
+
         st.markdown("<div class='tg-sidebar-section'>LLM Provider</div>", unsafe_allow_html=True)
         llm_provider_label = st.selectbox("Model provider", list(LLM_PROVIDER_OPTIONS.keys()), index=0)
         st.markdown("<div class='tg-sidebar-section'>Model</div>", unsafe_allow_html=True)
@@ -132,6 +135,7 @@ def render_sidebar() -> dict[str, Any]:
         "run_mode": run_mode,
         "sample_question": sample,
         "report_type": report_type,
+        "use_base_answer": use_base_answer,
         "llm_provider": normalize_llm_provider(llm_provider_label),
         "model_name": model_name.strip(),
         "search_provider": normalize_search_provider(search_provider_label),
@@ -158,7 +162,7 @@ def render_input_panel(controls: dict[str, Any]) -> tuple[str, str, bool]:
     question = st.text_area("Ask a question", value=controls["sample_question"], height=105)
     default_answer = _default_base_answer(question)
     base_answer = ""
-    use_base_answer = st.toggle("Use my own answer", value=controls["run_mode"] != "Backend + Model API")
+    use_base_answer = bool(controls.get("use_base_answer"))
     if use_base_answer:
         base_answer = st.text_area("Answer to check", value=default_answer, height=135)
         if controls["run_mode"] == "Backend + Model API":
@@ -167,7 +171,8 @@ def render_input_panel(controls: dict[str, Any]) -> tuple[str, str, bool]:
             st.warning("OpenRouter will not be called because Use my own answer is enabled.")
     elif controls["run_mode"] != "Demo Mode":
         st.info("The selected model will generate the first answer before TemporalGuard checks it.")
-    controls["use_base_answer"] = use_base_answer
+    if controls["run_mode"] == "Backend + Model API" and controls.get("search_provider") == "none":
+        st.info("No evidence provider selected. Fresh/current claims may receive low trust.")
     run_clicked = st.button("Run TemporalGuard", type="primary", width="stretch")
     return question, base_answer, run_clicked
 

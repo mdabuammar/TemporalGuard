@@ -1,4 +1,4 @@
-"""Production Streamlit styling for TemporalGuard."""
+"""Warm SaaS Streamlit styling for TemporalGuard."""
 
 from __future__ import annotations
 
@@ -10,35 +10,39 @@ def inject_premium_css() -> None:
         """
         <style>
         :root {
-          --tg-bg: #f4f7fb;
-          --tg-surface: #ffffff;
-          --tg-surface-soft: #f8fafc;
-          --tg-sidebar: #0b1020;
-          --tg-sidebar-soft: #111827;
-          --tg-text: #0f172a;
-          --tg-muted: #475569;
-          --tg-soft: #64748b;
-          --tg-border: #e2e8f0;
-          --tg-border-strong: #cbd5e1;
-          --tg-primary: #2563eb;
-          --tg-primary-dark: #1d4ed8;
-          --tg-accent: #06b6d4;
-          --tg-violet: #8b5cf6;
+          --tg-bg: #fbf8ef;
+          --tg-bg-2: #f7f3e8;
+          --tg-cream: #fffaf0;
+          --tg-card: #ffffff;
+          --tg-card-warm: #fffdf7;
+          --tg-text: #1f2937;
+          --tg-text-soft: #2f2f2f;
+          --tg-muted: #5f6673;
+          --tg-faint: #8a8f98;
+          --tg-border: #eee7d8;
+          --tg-border-strong: #dfd6c5;
+          --tg-sage: #8bbfa3;
+          --tg-mint: #b7dfcf;
+          --tg-sage-soft: #d9e8dc;
+          --tg-beige: #eee7d8;
+          --tg-charcoal: #2f2f2f;
+          --tg-blue: #2563eb;
           --tg-success: #16a34a;
-          --tg-warning: #f59e0b;
+          --tg-warning: #d97706;
           --tg-danger: #dc2626;
-          --tg-radius: 14px;
-          --tg-shadow: 0 18px 45px rgba(15, 23, 42, .08);
-          --tg-shadow-soft: 0 10px 28px rgba(15, 23, 42, .06);
+          --tg-radius: 24px;
+          --tg-radius-sm: 16px;
+          --tg-shadow: 0 24px 70px rgba(47, 47, 47, .10);
+          --tg-shadow-soft: 0 12px 34px rgba(47, 47, 47, .07);
         }
 
         @keyframes tgFadeUp {
-          from { opacity: 0; transform: translateY(10px); }
+          from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes tgGlow {
-          0%, 100% { opacity: .65; transform: translate3d(0, 0, 0) scale(1); }
-          50% { opacity: .9; transform: translate3d(8px, -8px, 0) scale(1.02); }
+        @keyframes tgSoftGlow {
+          0%, 100% { opacity: .55; transform: translate3d(0, 0, 0) scale(1); }
+          50% { opacity: .78; transform: translate3d(10px, -10px, 0) scale(1.015); }
         }
         @keyframes tgGradientMove {
           0% { background-position: 0% 50%; }
@@ -50,25 +54,27 @@ def inject_premium_css() -> None:
           font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           color: var(--tg-text);
           background:
-            radial-gradient(circle at 14% 4%, rgba(37, 99, 235, .10), transparent 28%),
-            radial-gradient(circle at 82% 8%, rgba(6, 182, 212, .14), transparent 26%),
-            linear-gradient(180deg, #f8fafc 0%, #eef4fb 100%);
+            radial-gradient(circle at 16% 8%, rgba(183, 223, 207, .42), transparent 30%),
+            radial-gradient(circle at 86% 6%, rgba(238, 231, 216, .86), transparent 28%),
+            linear-gradient(180deg, var(--tg-bg) 0%, var(--tg-bg-2) 100%);
         }
         .stApp::before {
           content: "";
           position: fixed;
           inset: 0;
           pointer-events: none;
-          background: radial-gradient(circle at 70% 16%, rgba(139, 92, 246, .08), transparent 30%);
-          animation: tgGlow 16s ease-in-out infinite;
+          background:
+            radial-gradient(circle at 78% 18%, rgba(139, 191, 163, .22), transparent 28%),
+            radial-gradient(circle at 24% 82%, rgba(255, 250, 240, .85), transparent 32%);
+          animation: tgSoftGlow 18s ease-in-out infinite;
           z-index: 0;
         }
         .stApp > div { position: relative; z-index: 1; }
         #MainMenu, footer, header { visibility: hidden; }
 
         .block-container {
-          max-width: 1160px;
-          padding: 1.35rem 1.35rem 2.2rem;
+          max-width: 1120px;
+          padding: 1.3rem 1.4rem 2.2rem;
         }
         .tg-app-shell {
           animation: tgFadeUp .45s ease both;
@@ -76,98 +82,101 @@ def inject_premium_css() -> None:
 
         /* Sidebar */
         section[data-testid="stSidebar"] {
-          background: linear-gradient(180deg, #0b1020 0%, #111827 100%) !important;
-          border-right: 1px solid rgba(148, 163, 184, .24);
-          box-shadow: 14px 0 40px rgba(15, 23, 42, .12);
+          background:
+            linear-gradient(180deg, rgba(255, 250, 240, .98), rgba(247, 243, 232, .98)) !important;
+          border-right: 1px solid var(--tg-border);
+          box-shadow: 16px 0 50px rgba(47, 47, 47, .08);
           overflow-y: auto !important;
           scrollbar-width: thin;
-          scrollbar-color: rgba(56, 189, 248, .55) rgba(15, 23, 42, .7);
+          scrollbar-color: var(--tg-sage) transparent;
         }
         section[data-testid="stSidebar"] > div {
           background: transparent !important;
           max-height: 100vh;
           overflow-y: auto !important;
-          padding-bottom: 28px;
+          padding-bottom: 30px;
         }
         section[data-testid="stSidebar"]::-webkit-scrollbar,
         section[data-testid="stSidebar"] > div::-webkit-scrollbar { width: 8px; }
         section[data-testid="stSidebar"]::-webkit-scrollbar-thumb,
         section[data-testid="stSidebar"] > div::-webkit-scrollbar-thumb {
-          background: rgba(56, 189, 248, .5);
+          background: rgba(139, 191, 163, .7);
           border-radius: 999px;
         }
         section[data-testid="stSidebar"] * {
-          color: #e5eefb !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stExpander"] {
-          background: rgba(255, 255, 255, .05) !important;
-          border: 1px solid rgba(148, 163, 184, .22) !important;
-          border-radius: 14px !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stExpander"] details {
-          background: transparent !important;
+          color: var(--tg-text) !important;
         }
         section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
         section[data-testid="stSidebar"] .stCaptionContainer,
         section[data-testid="stSidebar"] small {
-          color: #b9c7d9 !important;
+          color: var(--tg-muted) !important;
+        }
+        section[data-testid="stSidebar"] [data-testid="stExpander"] {
+          background: rgba(255, 255, 255, .66) !important;
+          border: 1px solid var(--tg-border) !important;
+          border-radius: 18px !important;
+          box-shadow: 0 8px 24px rgba(47, 47, 47, .04);
+        }
+        section[data-testid="stSidebar"] [data-testid="stExpander"] details {
+          background: transparent !important;
         }
         .tg-sidebar-brand {
-          padding: 16px;
-          margin: 4px 0 16px;
-          border: 1px solid rgba(148, 163, 184, .2);
-          border-radius: var(--tg-radius);
-          background: rgba(255, 255, 255, .06);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+          padding: 18px;
+          margin: 4px 0 18px;
+          border: 1px solid var(--tg-border);
+          border-radius: 22px;
+          background:
+            linear-gradient(135deg, rgba(217, 232, 220, .92), rgba(255, 255, 255, .72)),
+            var(--tg-card-warm);
+          box-shadow: var(--tg-shadow-soft);
         }
         .tg-sidebar-title {
-          color: #ffffff;
+          color: var(--tg-charcoal);
           font-size: 22px;
           line-height: 1.1;
           font-weight: 850;
           margin-bottom: 8px;
         }
         .tg-sidebar-section {
-          color: #93c5fd !important;
+          color: #4f7f64 !important;
           font-size: 12px;
           font-weight: 850;
-          letter-spacing: .08em;
+          letter-spacing: .06em;
           text-transform: uppercase;
           margin: 18px 0 8px;
         }
 
-        /* Typography and cards */
-        .tg-hero {
-          margin-bottom: 18px;
-        }
+        /* Product header and cards */
+        .tg-hero { margin-bottom: 18px; }
         .tg-product-header {
           position: relative;
           overflow: hidden;
-          border: 1px solid rgba(226, 232, 240, .9);
-          border-radius: 22px;
-          padding: 28px;
+          border: 1px solid rgba(238, 231, 216, .95);
+          border-radius: 30px;
+          padding: 32px;
           background:
-            linear-gradient(135deg, rgba(37, 99, 235, .08), rgba(6, 182, 212, .08)),
-            #ffffff;
+            radial-gradient(circle at 86% 18%, rgba(183, 223, 207, .55), transparent 30%),
+            linear-gradient(135deg, rgba(255, 255, 255, .9), rgba(255, 250, 240, .94));
           box-shadow: var(--tg-shadow);
           animation: tgFadeUp .45s ease both;
         }
         .tg-product-header::after {
           content: "";
           position: absolute;
-          right: -70px;
-          bottom: -90px;
-          width: 260px;
-          height: 200px;
-          background: radial-gradient(circle, rgba(37, 99, 235, .15), transparent 70%);
+          right: -60px;
+          bottom: -80px;
+          width: 250px;
+          height: 190px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(139, 191, 163, .28), transparent 70%);
           pointer-events: none;
         }
         .tg-hero-title {
-          margin: 0 0 8px;
-          color: var(--tg-text);
-          font-size: 42px;
+          margin: 0 0 10px;
+          color: var(--tg-charcoal);
+          font-size: 43px;
           line-height: 1.02;
-          font-weight: 850;
+          font-weight: 870;
           letter-spacing: 0;
         }
         .tg-hero-subtitle {
@@ -180,55 +189,52 @@ def inject_premium_css() -> None:
         .tg-chip {
           display: inline-flex;
           align-items: center;
-          min-height: 30px;
-          padding: 6px 11px;
+          min-height: 32px;
+          padding: 7px 12px;
           margin: 0 8px 8px 0;
           border-radius: 999px;
-          border: 1px solid #bfdbfe;
-          background: #eff6ff;
-          color: #1d4ed8;
+          border: 1px solid rgba(139, 191, 163, .34);
+          background: rgba(217, 232, 220, .7);
+          color: #315d45;
           font-size: 13px;
-          font-weight: 750;
+          font-weight: 780;
         }
         .tg-card,
         .tg-workspace-card,
-        .tg-empty-state,
-        .tg-summary-card {
+        .tg-empty-state {
           border: 1px solid var(--tg-border);
           border-radius: var(--tg-radius);
-          background: var(--tg-surface);
+          background: rgba(255, 255, 255, .88);
           box-shadow: var(--tg-shadow-soft);
-          padding: 18px;
-          margin-bottom: 14px;
+          padding: 20px;
+          margin-bottom: 15px;
           animation: tgFadeUp .45s ease both;
           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
         }
         .tg-card:hover,
-        .tg-summary-card:hover,
         .tg-kpi-card:hover {
           transform: translateY(-2px);
-          border-color: #bfdbfe;
+          border-color: rgba(139, 191, 163, .45);
           box-shadow: var(--tg-shadow);
         }
         .tg-section-title {
-          color: var(--tg-primary);
+          color: #4f7f64;
           font-size: 13px;
           line-height: 1.2;
           font-weight: 850;
-          letter-spacing: .06em;
+          letter-spacing: .055em;
           text-transform: uppercase;
           margin: 0 0 10px;
         }
         .tg-muted {
           color: var(--tg-muted);
           font-size: 15px;
-          line-height: 1.6;
+          line-height: 1.65;
         }
         .tg-input-title,
-        .tg-summary-value,
         .tg-empty-title {
-          color: var(--tg-text);
-          font-size: 22px;
+          color: var(--tg-charcoal);
+          font-size: 23px;
           line-height: 1.25;
           font-weight: 850;
           margin: 8px 0;
@@ -236,26 +242,26 @@ def inject_premium_css() -> None:
         .tg-split-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 14px;
-          margin-bottom: 14px;
+          gap: 15px;
+          margin-bottom: 15px;
         }
 
         /* Result */
         .tg-result-card {
           position: relative;
           overflow: hidden;
-          border-radius: 20px;
+          border-radius: 30px;
           padding: 1px;
-          margin: 10px 0 16px;
-          background: linear-gradient(135deg, #2563eb, #06b6d4, #8b5cf6);
+          margin: 12px 0 18px;
+          background: linear-gradient(135deg, #8bbfa3, #b7dfcf, #eee7d8);
           background-size: 220% 220%;
-          animation: tgFadeUp .45s ease both, tgGradientMove 10s ease infinite;
-          box-shadow: 0 20px 52px rgba(37, 99, 235, .16);
+          animation: tgFadeUp .45s ease both, tgGradientMove 12s ease infinite;
+          box-shadow: 0 24px 70px rgba(79, 127, 100, .14);
         }
         .tg-result-card-inner {
-          border-radius: 19px;
-          padding: 22px;
-          background: #ffffff;
+          border-radius: 29px;
+          padding: 24px;
+          background: rgba(255, 255, 255, .94);
         }
         .tg-result-header {
           display: flex;
@@ -267,35 +273,35 @@ def inject_premium_css() -> None:
         .tg-answer-text {
           color: var(--tg-text);
           font-size: 18px;
-          line-height: 1.72;
+          line-height: 1.75;
           margin-top: 12px;
         }
         .tg-trust-pill {
           min-width: 116px;
           text-align: right;
-          border: 1px solid #bfdbfe;
-          background: #eff6ff;
-          border-radius: 14px;
-          padding: 10px 12px;
+          border: 1px solid rgba(139, 191, 163, .36);
+          background: rgba(217, 232, 220, .62);
+          border-radius: 18px;
+          padding: 11px 13px;
         }
         .tg-kpi-card {
           min-height: 104px;
           padding: 16px;
           margin-bottom: 12px;
-          border-radius: var(--tg-radius);
+          border-radius: 20px;
           border: 1px solid var(--tg-border);
-          background: #ffffff;
+          background: rgba(255, 255, 255, .92);
           box-shadow: var(--tg-shadow-soft);
         }
         .tg-kpi-label {
-          color: var(--tg-soft);
+          color: var(--tg-faint);
           text-transform: uppercase;
           font-size: 12px;
           font-weight: 820;
-          letter-spacing: .06em;
+          letter-spacing: .055em;
         }
         .tg-kpi-value {
-          color: var(--tg-text);
+          color: var(--tg-charcoal);
           font-size: 22px;
           font-weight: 850;
           line-height: 1.18;
@@ -315,12 +321,12 @@ def inject_premium_css() -> None:
           align-items: center;
           white-space: nowrap;
           border-radius: 999px;
-          padding: 7px 10px;
+          padding: 8px 11px;
           border: 1px solid transparent;
           font-size: 12px;
           line-height: 1;
           font-weight: 850;
-          letter-spacing: .04em;
+          letter-spacing: .035em;
         }
         .tg-badge-safe { color: #166534; background: #dcfce7; border-color: #bbf7d0; }
         .tg-badge-low { color: #3f6212; background: #ecfccb; border-color: #d9f99d; }
@@ -329,10 +335,10 @@ def inject_premium_css() -> None:
         .tg-badge-critical { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
         .tg-badge-unknown { color: #334155; background: #f1f5f9; border-color: #cbd5e1; }
         .tg-warning-card {
-          border: 1px solid #fed7aa;
-          background: #fff7ed;
-          color: #9a3412;
-          border-radius: var(--tg-radius);
+          border: 1px solid #f1d4a7;
+          background: #fff8e9;
+          color: #8a4b0f;
+          border-radius: 20px;
           padding: 14px 16px;
           margin: 12px 0 16px;
           font-size: 15px;
@@ -340,15 +346,15 @@ def inject_premium_css() -> None:
           animation: tgFadeUp .45s ease both;
         }
         .tg-debug-box {
-          background: #f8fafc;
+          background: rgba(255, 255, 255, .72);
           border: 1px solid var(--tg-border);
-          border-radius: var(--tg-radius);
+          border-radius: 20px;
           padding: 14px;
           color: var(--tg-muted);
         }
         .tg-footer {
-          color: var(--tg-soft);
-          border-top: 1px solid var(--tg-border);
+          color: var(--tg-faint);
+          border-top: 1px solid rgba(223, 214, 197, .8);
           margin-top: 22px;
           padding-top: 14px;
           font-size: 13px;
@@ -356,51 +362,49 @@ def inject_premium_css() -> None:
         }
 
         /* Streamlit form controls */
-        label, .stMarkdown, p, span, div {
-          letter-spacing: 0;
-        }
+        label, .stMarkdown, p, span, div { letter-spacing: 0; }
         div[data-testid="stTextArea"] label,
         div[data-testid="stTextInput"] label,
         div[data-testid="stSelectbox"] label,
         div[data-testid="stRadio"] label,
         div[data-testid="stCheckbox"] label,
+        div[data-testid="stToggle"] label,
         div[data-testid="stSlider"] label {
           color: var(--tg-text) !important;
           font-size: 14px !important;
-          font-weight: 720 !important;
+          font-weight: 730 !important;
         }
         div[data-testid="stTextArea"] textarea,
         div[data-testid="stTextInput"] input {
           color: var(--tg-text) !important;
-          background: #ffffff !important;
+          -webkit-text-fill-color: var(--tg-text) !important;
+          background: rgba(255, 255, 255, .96) !important;
           border: 1px solid var(--tg-border-strong) !important;
-          border-radius: 12px !important;
-          box-shadow: 0 1px 2px rgba(15, 23, 42, .04) !important;
+          border-radius: 18px !important;
+          box-shadow: 0 1px 2px rgba(47, 47, 47, .04) !important;
           font-size: 16px !important;
           line-height: 1.55 !important;
         }
         div[data-testid="stTextArea"] textarea::placeholder,
         div[data-testid="stTextInput"] input::placeholder {
-          color: #64748b !important;
+          color: #737b86 !important;
+          -webkit-text-fill-color: #737b86 !important;
         }
         div[data-testid="stTextArea"] textarea:focus,
         div[data-testid="stTextInput"] input:focus {
-          border-color: var(--tg-primary) !important;
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, .12) !important;
+          border-color: var(--tg-sage) !important;
+          box-shadow: 0 0 0 4px rgba(139, 191, 163, .18) !important;
         }
+
         div[data-testid="stSelectbox"] [data-baseweb="select"] > div {
           color: var(--tg-text) !important;
-          background: #ffffff !important;
-          border-color: var(--tg-border-strong) !important;
-          border-radius: 12px !important;
-          min-height: 42px;
+          background: rgba(255, 255, 255, .96) !important;
+          border: 1px solid var(--tg-border-strong) !important;
+          border-radius: 18px !important;
+          min-height: 44px;
         }
         div[data-testid="stSelectbox"] [data-baseweb="select"],
         div[data-testid="stSelectbox"] [data-baseweb="select"] *,
-        div[data-testid="stTextInput"] *,
-        div[data-testid="stTextArea"] * {
-          -webkit-text-fill-color: var(--tg-text) !important;
-        }
         div[data-testid="stSelectbox"] [data-baseweb="select"] span,
         div[data-testid="stSelectbox"] [data-baseweb="select"] input {
           color: var(--tg-text) !important;
@@ -409,84 +413,55 @@ def inject_premium_css() -> None:
         div[data-baseweb="popover"],
         div[data-baseweb="popover"] * {
           color: var(--tg-text) !important;
-          background-color: #ffffff !important;
+          background-color: #fffdf7 !important;
+          -webkit-text-fill-color: var(--tg-text) !important;
         }
         ul[role="listbox"] {
-          background: #ffffff !important;
+          background: #fffdf7 !important;
           border: 1px solid var(--tg-border) !important;
-          border-radius: 12px !important;
+          border-radius: 18px !important;
           box-shadow: var(--tg-shadow) !important;
+          padding: 6px !important;
         }
         li[role="option"] {
           color: var(--tg-text) !important;
-          background: #ffffff !important;
+          background: #fffdf7 !important;
           font-size: 15px !important;
+          border-radius: 12px !important;
         }
         li[role="option"]:hover,
         li[aria-selected="true"] {
-          background: #eff6ff !important;
-          color: #1d4ed8 !important;
+          background: var(--tg-sage-soft) !important;
+          color: #264a36 !important;
+          -webkit-text-fill-color: #264a36 !important;
         }
         div[data-testid="stRadio"] label,
         div[data-testid="stCheckbox"] label,
         div[data-testid="stToggle"] label {
           color: var(--tg-text) !important;
         }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] label,
-        section[data-testid="stSidebar"] div[data-testid="stCheckbox"] label,
-        section[data-testid="stSidebar"] div[data-testid="stToggle"] label,
-        section[data-testid="stSidebar"] div[data-testid="stSlider"] label {
-          color: #e5eefb !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stTextInput"] input,
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] > div {
-          background: rgba(255, 255, 255, .96) !important;
-          color: #0f172a !important;
-          border-color: rgba(255, 255, 255, .2) !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stTextInput"] *,
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"],
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] * {
-          color: #0f172a !important;
-          -webkit-text-fill-color: #0f172a !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] span,
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] [data-baseweb="select"] input {
-          color: #0f172a !important;
-          -webkit-text-fill-color: #0f172a !important;
-        }
-        section[data-testid="stSidebar"] div[data-testid="stRadio"] *,
-        section[data-testid="stSidebar"] div[data-testid="stCheckbox"] *,
-        section[data-testid="stSidebar"] div[data-testid="stToggle"] *,
-        section[data-testid="stSidebar"] div[data-testid="stSlider"] * {
-          color: #e5eefb !important;
-          -webkit-text-fill-color: unset !important;
-        }
         .stButton > button {
           width: 100%;
-          min-height: 50px;
+          min-height: 52px;
           border: 0;
           color: #ffffff !important;
-          border-radius: 13px;
-          background: linear-gradient(135deg, #2563eb 0%, #06b6d4 52%, #8b5cf6 100%);
+          border-radius: 18px;
+          background: linear-gradient(135deg, #2f2f2f 0%, #4f7f64 56%, #8bbfa3 100%);
           background-size: 180% 180%;
-          box-shadow: 0 14px 34px rgba(37, 99, 235, .24);
+          box-shadow: 0 16px 38px rgba(47, 47, 47, .18);
           font-size: 17px;
           font-weight: 850;
-          animation: tgGradientMove 12s ease infinite;
+          animation: tgGradientMove 14s ease infinite;
           transition: transform .18s ease, box-shadow .18s ease;
         }
         .stButton > button:hover {
           transform: translateY(-1px);
-          box-shadow: 0 18px 42px rgba(37, 99, 235, .3);
+          box-shadow: 0 20px 46px rgba(47, 47, 47, .22);
           color: #ffffff !important;
         }
-        .stButton > button:focus {
-          box-shadow: 0 0 0 4px rgba(37, 99, 235, .16), 0 14px 34px rgba(37, 99, 235, .24);
-        }
         div[data-testid="stSlider"] [role="slider"] {
-          background: var(--tg-primary) !important;
-          border-color: var(--tg-primary) !important;
+          background: var(--tg-sage) !important;
+          border-color: var(--tg-sage) !important;
         }
         .stTabs [data-baseweb="tab-list"] {
           gap: 8px;
@@ -495,26 +470,26 @@ def inject_premium_css() -> None:
         }
         .stTabs [data-baseweb="tab"] {
           color: var(--tg-muted) !important;
-          border-radius: 12px 12px 0 0;
+          border-radius: 16px 16px 0 0;
           padding: 10px 14px;
           font-size: 15px;
           font-weight: 800;
         }
         .stTabs [aria-selected="true"] {
-          color: #1d4ed8 !important;
-          background: #eff6ff;
-          border-bottom: 2px solid var(--tg-primary);
+          color: #315d45 !important;
+          background: rgba(217, 232, 220, .75);
+          border-bottom: 2px solid var(--tg-sage);
         }
         div[data-testid="stDataFrame"] {
           border: 1px solid var(--tg-border);
-          border-radius: var(--tg-radius);
+          border-radius: 20px;
           overflow: hidden;
-          background: #ffffff;
+          background: rgba(255, 255, 255, .92);
         }
         div[data-testid="stMetric"] {
-          background: #ffffff;
+          background: rgba(255, 255, 255, .92);
           border: 1px solid var(--tg-border);
-          border-radius: var(--tg-radius);
+          border-radius: 20px;
           padding: 14px;
           box-shadow: var(--tg-shadow-soft);
         }
@@ -525,24 +500,16 @@ def inject_premium_css() -> None:
           color: var(--tg-muted) !important;
         }
         pre, code {
-          color: #0f172a !important;
-          background: #f8fafc !important;
-          border-radius: 12px !important;
+          color: var(--tg-text) !important;
+          background: #fffaf0 !important;
+          border-radius: 16px !important;
         }
 
         @media (max-width: 900px) {
-          .tg-split-grid {
-            grid-template-columns: 1fr;
-          }
-          .tg-product-header {
-            padding: 22px;
-          }
-          .tg-hero-title {
-            font-size: 36px;
-          }
-          .tg-result-header {
-            flex-direction: column;
-          }
+          .tg-split-grid { grid-template-columns: 1fr; }
+          .tg-product-header { padding: 24px; }
+          .tg-hero-title { font-size: 36px; }
+          .tg-result-header { flex-direction: column; }
           .tg-trust-pill {
             text-align: left;
             width: 100%;
