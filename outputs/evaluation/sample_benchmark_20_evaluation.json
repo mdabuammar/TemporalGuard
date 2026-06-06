@@ -1,0 +1,125 @@
+{
+  "benchmark_path": "data/evaluation/sample_benchmark_20.jsonl",
+  "correction_success_rate": 1.0,
+  "dataset_name": "sample_benchmark_20",
+  "difficulty_breakdown": {
+    "easy": {
+      "correction_success_rate": 1.0,
+      "count": 9,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": 1.0
+    },
+    "hard": {
+      "correction_success_rate": 1.0,
+      "count": 1,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "medium": {
+      "correction_success_rate": 1.0,
+      "count": 10,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    }
+  },
+  "domain_breakdown": {
+    "company_leadership": {
+      "correction_success_rate": 1.0,
+      "count": 1,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "historical": {
+      "correction_success_rate": 1.0,
+      "count": 3,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "law_policy": {
+      "correction_success_rate": 1.0,
+      "count": 3,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "medical_science": {
+      "correction_success_rate": 1.0,
+      "count": 1,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "software": {
+      "correction_success_rate": 1.0,
+      "count": 9,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "sports_events": {
+      "correction_success_rate": 1.0,
+      "count": 1,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "static_education": {
+      "correction_success_rate": null,
+      "count": 2,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": 1.0
+    }
+  },
+  "end_to_end": {
+    "exact_decision_match_rate": 1.0,
+    "fully_correct_examples": 20,
+    "scored_examples": 20
+  },
+  "error_analysis": {
+    "extra_output_count": 0,
+    "mismatch_counts": {
+      "correction_success": 0,
+      "outdatedness_correct": 0,
+      "risk_label_correct": 0,
+      "temporal_category_correct": 0,
+      "unsupported_correction_avoided": 0
+    },
+    "mismatched_examples": [],
+    "missing_output_count": 0
+  },
+  "evaluated_examples": 20,
+  "outdatedness_accuracy": 1.0,
+  "outputs_path": "outputs\\evaluation\\sample_benchmark_20_outputs.jsonl",
+  "risk_label_accuracy": 1.0,
+  "scoring_datetime": "2026-06-06T00:00:00Z",
+  "search_provider": "GoldSearchProvider",
+  "temporal_category_accuracy": 1.0,
+  "total_examples": 20,
+  "unsupported_correction_avoidance": 1.0
+}

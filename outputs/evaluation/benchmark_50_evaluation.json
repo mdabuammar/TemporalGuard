@@ -1,0 +1,171 @@
+{
+  "benchmark_path": "data/evaluation/benchmark_50.jsonl",
+  "correction_success_rate": 1.0,
+  "dataset_name": "benchmark_50",
+  "difficulty_breakdown": {
+    "easy": {
+      "correction_success_rate": 1.0,
+      "count": 21,
+      "end_to_end_accuracy": 0.9047619047619048,
+      "outdatedness_accuracy": 0.9047619047619048,
+      "risk_label_accuracy": 0.9047619047619048,
+      "temporal_category_accuracy": 0.9047619047619048,
+      "unsupported_correction_avoidance": 0.75
+    },
+    "hard": {
+      "correction_success_rate": 1.0,
+      "count": 3,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "medium": {
+      "correction_success_rate": 1.0,
+      "count": 26,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    }
+  },
+  "domain_breakdown": {
+    "company_leadership": {
+      "correction_success_rate": 1.0,
+      "count": 3,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "historical": {
+      "correction_success_rate": 1.0,
+      "count": 6,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "law_policy": {
+      "correction_success_rate": 1.0,
+      "count": 6,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "medical_science": {
+      "correction_success_rate": 1.0,
+      "count": 2,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "software": {
+      "correction_success_rate": 1.0,
+      "count": 27,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "sports_events": {
+      "correction_success_rate": 1.0,
+      "count": 2,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "static_education": {
+      "correction_success_rate": null,
+      "count": 4,
+      "end_to_end_accuracy": 0.5,
+      "outdatedness_accuracy": 0.5,
+      "risk_label_accuracy": 0.5,
+      "temporal_category_accuracy": 0.5,
+      "unsupported_correction_avoidance": 0.75
+    }
+  },
+  "end_to_end": {
+    "exact_decision_match_rate": 0.96,
+    "fully_correct_examples": 48,
+    "scored_examples": 50
+  },
+  "error_analysis": {
+    "extra_output_count": 0,
+    "mismatch_counts": {
+      "correction_success": 0,
+      "outdatedness_correct": 2,
+      "risk_label_correct": 2,
+      "temporal_category_correct": 2,
+      "unsupported_correction_avoided": 1
+    },
+    "mismatched_examples": [
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0039",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0040",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      }
+    ],
+    "missing_output_count": 0
+  },
+  "evaluated_examples": 50,
+  "outdatedness_accuracy": 0.96,
+  "outputs_path": "outputs\\evaluation\\benchmark_50_outputs.jsonl",
+  "risk_label_accuracy": 0.96,
+  "scoring_datetime": "2026-06-06T00:00:00Z",
+  "search_provider": "GoldSearchProvider",
+  "temporal_category_accuracy": 0.96,
+  "total_examples": 50,
+  "unsupported_correction_avoidance": 0.75
+}

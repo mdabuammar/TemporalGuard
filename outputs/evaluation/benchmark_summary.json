@@ -1,0 +1,90 @@
+{
+  "datasets": [
+    {
+      "correction_success_rate": 1.0,
+      "dataset_name": "sample_benchmark_20",
+      "evaluation_path": "outputs\\evaluation\\sample_benchmark_20_evaluation.json",
+      "main_error_types": {},
+      "outdatedness_accuracy": 1.0,
+      "outputs_path": "outputs\\evaluation\\sample_benchmark_20_outputs.jsonl",
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "total_examples": 20,
+      "unsupported_correction_avoidance": 1.0
+    },
+    {
+      "correction_success_rate": 1.0,
+      "dataset_name": "benchmark_50",
+      "evaluation_path": "outputs\\evaluation\\benchmark_50_evaluation.json",
+      "main_error_types": {
+        "outdatedness_correct": 2,
+        "risk_label_correct": 2,
+        "temporal_category_correct": 2,
+        "unsupported_correction_avoided": 1
+      },
+      "outdatedness_accuracy": 0.96,
+      "outputs_path": "outputs\\evaluation\\benchmark_50_outputs.jsonl",
+      "risk_label_accuracy": 0.96,
+      "temporal_category_accuracy": 0.96,
+      "total_examples": 50,
+      "unsupported_correction_avoidance": 0.75
+    },
+    {
+      "correction_success_rate": 0.9888888888888889,
+      "dataset_name": "benchmark_100",
+      "evaluation_path": "outputs\\evaluation\\benchmark_100_evaluation.json",
+      "main_error_types": {
+        "correction_success": 1,
+        "outdatedness_correct": 12,
+        "risk_label_correct": 11,
+        "temporal_category_correct": 8,
+        "unsupported_correction_avoided": 4
+      },
+      "outdatedness_accuracy": 0.88,
+      "outputs_path": "outputs\\evaluation\\benchmark_100_outputs.jsonl",
+      "risk_label_accuracy": 0.89,
+      "temporal_category_accuracy": 0.92,
+      "total_examples": 100,
+      "unsupported_correction_avoidance": 0.6
+    },
+    {
+      "correction_success_rate": 0.9833333333333333,
+      "dataset_name": "benchmark_200",
+      "evaluation_path": "outputs\\evaluation\\benchmark_200_evaluation.json",
+      "main_error_types": {
+        "correction_success": 3,
+        "outdatedness_correct": 22,
+        "risk_label_correct": 21,
+        "temporal_category_correct": 16,
+        "unsupported_correction_avoided": 8
+      },
+      "outdatedness_accuracy": 0.89,
+      "outputs_path": "outputs\\evaluation\\benchmark_200_outputs.jsonl",
+      "risk_label_accuracy": 0.895,
+      "temporal_category_accuracy": 0.92,
+      "total_examples": 200,
+      "unsupported_correction_avoidance": 0.6
+    },
+    {
+      "correction_success_rate": 0.9861111111111112,
+      "dataset_name": "benchmark_400",
+      "evaluation_path": "outputs\\evaluation\\benchmark_400_evaluation.json",
+      "main_error_types": {
+        "correction_success": 5,
+        "outdatedness_correct": 47,
+        "risk_label_correct": 41,
+        "temporal_category_correct": 43,
+        "unsupported_correction_avoided": 18
+      },
+      "outdatedness_accuracy": 0.8825,
+      "outputs_path": "outputs\\evaluation\\benchmark_400_outputs.jsonl",
+      "risk_label_accuracy": 0.8975,
+      "temporal_category_accuracy": 0.8925,
+      "total_examples": 400,
+      "unsupported_correction_avoidance": 0.55
+    }
+  ],
+  "experiment": "deterministic_gold_mock_benchmark_evaluation",
+  "scoring_datetime": "2026-06-06T00:00:00Z",
+  "search_provider": "GoldSearchProvider from gold_evidence_value/source_url/source_date/source_notes"
+}

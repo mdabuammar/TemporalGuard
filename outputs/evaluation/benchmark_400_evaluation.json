@@ -1,0 +1,1325 @@
+{
+  "benchmark_path": "data/evaluation/benchmark_400.jsonl",
+  "correction_success_rate": 0.9861111111111112,
+  "dataset_name": "benchmark_400",
+  "difficulty_breakdown": {
+    "easy": {
+      "correction_success_rate": 0.9642857142857143,
+      "count": 180,
+      "end_to_end_accuracy": 0.7555555555555555,
+      "outdatedness_accuracy": 0.7666666666666667,
+      "risk_label_accuracy": 0.7833333333333333,
+      "temporal_category_accuracy": 0.8,
+      "unsupported_correction_avoidance": 0.55
+    },
+    "hard": {
+      "correction_success_rate": 1.0,
+      "count": 20,
+      "end_to_end_accuracy": 0.95,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 0.95,
+      "unsupported_correction_avoidance": null
+    },
+    "medium": {
+      "correction_success_rate": 1.0,
+      "count": 200,
+      "end_to_end_accuracy": 0.95,
+      "outdatedness_accuracy": 0.975,
+      "risk_label_accuracy": 0.99,
+      "temporal_category_accuracy": 0.97,
+      "unsupported_correction_avoidance": null
+    }
+  },
+  "domain_breakdown": {
+    "company_leadership": {
+      "correction_success_rate": 1.0,
+      "count": 20,
+      "end_to_end_accuracy": 1.0,
+      "outdatedness_accuracy": 1.0,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "historical": {
+      "correction_success_rate": 0.9166666666666666,
+      "count": 60,
+      "end_to_end_accuracy": 0.8833333333333333,
+      "outdatedness_accuracy": 0.8833333333333333,
+      "risk_label_accuracy": 0.9166666666666666,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "law_policy": {
+      "correction_success_rate": 1.0,
+      "count": 60,
+      "end_to_end_accuracy": 0.95,
+      "outdatedness_accuracy": 0.9833333333333333,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 0.9666666666666667,
+      "unsupported_correction_avoidance": null
+    },
+    "medical_science": {
+      "correction_success_rate": 1.0,
+      "count": 20,
+      "end_to_end_accuracy": 0.95,
+      "outdatedness_accuracy": 0.95,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "software": {
+      "correction_success_rate": 1.0,
+      "count": 180,
+      "end_to_end_accuracy": 0.9611111111111111,
+      "outdatedness_accuracy": 0.9833333333333333,
+      "risk_label_accuracy": 0.9888888888888889,
+      "temporal_category_accuracy": 0.9722222222222222,
+      "unsupported_correction_avoidance": null
+    },
+    "sports_events": {
+      "correction_success_rate": 1.0,
+      "count": 20,
+      "end_to_end_accuracy": 0.95,
+      "outdatedness_accuracy": 0.95,
+      "risk_label_accuracy": 1.0,
+      "temporal_category_accuracy": 1.0,
+      "unsupported_correction_avoidance": null
+    },
+    "static_education": {
+      "correction_success_rate": null,
+      "count": 40,
+      "end_to_end_accuracy": 0.1,
+      "outdatedness_accuracy": 0.15,
+      "risk_label_accuracy": 0.15,
+      "temporal_category_accuracy": 0.1,
+      "unsupported_correction_avoidance": 0.55
+    }
+  },
+  "end_to_end": {
+    "exact_decision_match_rate": 0.8625,
+    "fully_correct_examples": 345,
+    "scored_examples": 400
+  },
+  "error_analysis": {
+    "extra_output_count": 0,
+    "mismatch_counts": {
+      "correction_success": 5,
+      "outdatedness_correct": 47,
+      "risk_label_correct": 41,
+      "temporal_category_correct": 43,
+      "unsupported_correction_avoided": 18
+    },
+    "mismatched_examples": [
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0039",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0040",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0059",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0060",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "correction_success",
+          "risk_label_correct"
+        ],
+        "id": "EX0074",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0079",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0080",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0087",
+        "predicted": {
+          "correction_status": "partially_corrected",
+          "outdatedness_status": "PARTIALLY_OUTDATED",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0089",
+        "predicted": {
+          "correction_status": "partially_corrected",
+          "outdatedness_status": "PARTIALLY_OUTDATED",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "critical_risk",
+          "temporal_category": "RECENT_ONLY"
+        },
+        "failed_metrics": [
+          "outdatedness_correct"
+        ],
+        "id": "EX0096",
+        "predicted": {
+          "correction_status": "partially_corrected",
+          "outdatedness_status": "PARTIALLY_OUTDATED",
+          "requires_correction": true,
+          "risk_label": "critical_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0099",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0100",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "correction_success",
+          "risk_label_correct"
+        ],
+        "id": "EX0114",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0119",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0120",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0139",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0140",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0159",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0160",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "correction_success",
+          "risk_label_correct"
+        ],
+        "id": "EX0174",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0199",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0200",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0219",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0220",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct"
+        ],
+        "id": "EX0226",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0227",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0228",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0229",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "VERSION_DEPENDENT"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0230",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct"
+        ],
+        "id": "EX0231",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct"
+        ],
+        "id": "EX0232",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct"
+        ],
+        "id": "EX0233",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct"
+        ],
+        "id": "EX0234",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "OUTDATED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "critical_risk",
+          "temporal_category": "TIME_SENSITIVE"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0237",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "critical_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "critical_risk",
+          "temporal_category": "TIME_SENSITIVE"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0238",
+        "predicted": {
+          "correction_status": "corrected",
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "critical_risk",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0239",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct"
+        ],
+        "id": "EX0240",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "RECENT_ONLY"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "correction_success",
+          "risk_label_correct"
+        ],
+        "id": "EX0254",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0259",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0260",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0279",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0280",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "CONTRADICTED",
+          "requires_correction": true,
+          "risk_label": "medium_risk",
+          "temporal_category": "HISTORICAL"
+        },
+        "failed_metrics": [
+          "outdatedness_correct",
+          "correction_success",
+          "risk_label_correct"
+        ],
+        "id": "EX0294",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "HISTORICAL"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0299",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0300",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0319",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0320",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0339",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0340",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0359",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0360",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0379",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0380",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "unsupported_correction_avoided",
+          "risk_label_correct"
+        ],
+        "id": "EX0399",
+        "predicted": {
+          "correction_status": "unable_to_correct",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": true,
+          "risk_label": "high_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      },
+      {
+        "expected": {
+          "correction_status": null,
+          "outdatedness_status": "NOT_OUTDATED",
+          "requires_correction": false,
+          "risk_label": "safe",
+          "temporal_category": "STATIC"
+        },
+        "failed_metrics": [
+          "temporal_category_correct",
+          "outdatedness_correct",
+          "risk_label_correct"
+        ],
+        "id": "EX0400",
+        "predicted": {
+          "correction_status": "no_correction_needed",
+          "outdatedness_status": "NOT_ENOUGH_INFORMATION",
+          "requires_correction": false,
+          "risk_label": "unknown_risk",
+          "temporal_category": "UNKNOWN"
+        }
+      }
+    ],
+    "missing_output_count": 0
+  },
+  "evaluated_examples": 400,
+  "outdatedness_accuracy": 0.8825,
+  "outputs_path": "outputs\\evaluation\\benchmark_400_outputs.jsonl",
+  "risk_label_accuracy": 0.8975,
+  "scoring_datetime": "2026-06-06T00:00:00Z",
+  "search_provider": "GoldSearchProvider",
+  "temporal_category_accuracy": 0.8925,
+  "total_examples": 400,
+  "unsupported_correction_avoidance": 0.55
+}
