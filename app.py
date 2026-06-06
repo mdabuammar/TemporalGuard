@@ -36,7 +36,6 @@ from temporalguard.frontend.styles import inject_premium_css
 def main() -> None:
     st.set_page_config(
         page_title="TemporalGuard",
-        page_icon="TG",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -110,11 +109,9 @@ def render_sidebar() -> dict[str, Any]:
         llm_provider_label = st.selectbox("Model provider", list(LLM_PROVIDER_OPTIONS.keys()), index=0)
         st.markdown("<div class='tg-sidebar-section'>Model</div>", unsafe_allow_html=True)
         model_name = st.text_input("Model name", value="openrouter/free")
-        search_provider_label = "None"
-        if run_mode == "Backend + Model API":
-            st.markdown("<div class='tg-sidebar-section'>Evidence Provider</div>", unsafe_allow_html=True)
-            search_provider_label = st.selectbox("Evidence provider", list(SEARCH_PROVIDER_OPTIONS.keys()), index=0)
-            st.caption("Evidence provider is used to verify fresh/current claims.")
+        st.markdown("<div class='tg-sidebar-section'>Evidence Provider</div>", unsafe_allow_html=True)
+        search_provider_label = st.selectbox("Evidence provider", list(SEARCH_PROVIDER_OPTIONS.keys()), index=0)
+        st.caption("Evidence provider is used to verify fresh/current claims.")
         if run_mode == "Backend + Model API" and llm_provider_label == "OpenRouter":
             st.info("To test OpenRouter: turn off Use my own answer, keep model as openrouter/free, and run a question.")
 

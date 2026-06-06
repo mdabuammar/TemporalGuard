@@ -70,7 +70,11 @@ def inject_premium_css() -> None:
           z-index: 0;
         }
         .stApp > div { position: relative; z-index: 1; }
-        #MainMenu, footer, header { visibility: hidden; }
+        #MainMenu, footer { visibility: hidden; }
+        header {
+          visibility: visible !important;
+          background: transparent !important;
+        }
 
         .block-container {
           max-width: 1120px;
@@ -82,11 +86,16 @@ def inject_premium_css() -> None:
 
         /* Sidebar */
         section[data-testid="stSidebar"] {
+          display: block !important;
+          visibility: visible !important;
           background:
             linear-gradient(180deg, rgba(255, 250, 240, .98), rgba(247, 243, 232, .98)) !important;
           border-right: 1px solid var(--tg-border);
           box-shadow: 16px 0 50px rgba(47, 47, 47, .08);
           overflow-y: auto !important;
+          min-width: 300px;
+          max-width: 380px;
+          z-index: 5 !important;
           scrollbar-width: thin;
           scrollbar-color: var(--tg-sage) transparent;
         }
@@ -94,7 +103,7 @@ def inject_premium_css() -> None:
           background: transparent !important;
           max-height: 100vh;
           overflow-y: auto !important;
-          padding-bottom: 30px;
+          padding: 18px 16px 30px;
         }
         section[data-testid="stSidebar"]::-webkit-scrollbar,
         section[data-testid="stSidebar"] > div::-webkit-scrollbar { width: 8px; }
