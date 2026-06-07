@@ -164,13 +164,40 @@ def _build_evidence_text(evidence_item: dict[str, Any]) -> str:
         str(evidence_item.get("title") or ""),
         str(evidence_item.get("publisher") or ""),
         str(evidence_item.get("evidence_summary") or ""),
+        str(evidence_item.get("evidence_value") or ""),
+        str(evidence_item.get("snippet") or ""),
+        str(evidence_item.get("content") or ""),
         str(evidence_item.get("quote") or ""),
     ]
     return " ".join(part for part in parts if part).strip()
 
 
 def _extract_versions(text: str) -> list[str]:
-    return _unique(re.findall(r"\b(?:[A-Z][A-Za-z]+(?:\s+)?|v)?\d+(?:\.\d+){1,3}\b", text))
+    return [candidate["raw"] for candidate in _extract_version_candidates(text)]
+
+
+def _extract_version_candidates(text: str) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    pattern = re.compile(
+        r"\b(?:(?P<subject>[A-Za-z][A-Za-z0-9+#-]{1,30})[\s_-]*)?"
+        r"(?:v(?:ersion)?[\s_-]*)?"
+        r"(?P<version>\d+(?:\.\d+){1,3})\b",
+        re.IGNORECASE,
+    )
+    for match in pattern.finditer(text or ""):
+        version = match.group("version")
+        raw_subject = match.group("subject") or ""
+        subject = _normalize_version_subject(raw_subject)
+        raw = match.group(0).strip(" .,:;()[]{}")
+        candidates.append(
+            {
+                "raw": _format_version_value(subject, raw_subject, version, raw),
+                "subject": subject,
+                "numbers": tuple(int(part) for part in version.split(".")),
+                "normalized": ".".join(str(int(part)) for part in version.split(".")),
+            }
+        )
+    return _unique_version_candidates(candidates)
 
 
 def _extract_years(text: str) -> list[str]:
@@ -277,6 +304,100 @@ def _same_major_subject_version(claim_value: str, evidence_value: str) -> bool:
     return claim_value.lower().split()[0:1] == evidence_value.lower().split()[0:1]
 
 
+def _normalize_version_subject(subject: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9+#]+", "", subject or "").lower()
+    generic = {"v", "version", "release", "latest", "current", "stable", "download"}
+    return "" if text in generic else text
+
+
+def _format_version_value(subject: str, raw_subject: str, version: str, raw: str) -> str:
+    if subject:
+        prefix_match = re.match(r"[A-Za-z][A-Za-z0-9+#-]*", raw or "")
+        prefix = raw_subject.strip(" -_") or (prefix_match.group(0) if prefix_match else subject)
+        if re.search(rf"{re.escape(prefix)}[\s_-]+{re.escape(version)}", raw or "", re.IGNORECASE):
+            return f"{prefix} {version}"
+        return f"{prefix} {version}" if prefix.lower() == subject else f"{subject} {version}"
+    return version
+
+
+def _unique_version_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str]] = set()
+    unique_candidates: list[dict[str, Any]] = []
+    for candidate in candidates:
+        key = (candidate["subject"], candidate["normalized"])
+        if key not in seen:
+            seen.add(key)
+            unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def _version_subjects_compatible(claim: dict[str, Any], claim_candidate: dict[str, Any], evidence_candidate: dict[str, Any]) -> bool:
+    claim_subject = str(claim_candidate.get("subject") or "")
+    evidence_subject = str(evidence_candidate.get("subject") or "")
+    claim_text = str(claim.get("claim_text") or "").lower()
+    entities = " ".join(str(entity) for entity in claim.get("entities", [])).lower()
+    if claim_subject and evidence_subject:
+        return claim_subject == evidence_subject
+    subject = claim_subject or evidence_subject
+    return not subject or subject in claim_text or subject in entities
+
+
+def _versions_equivalent(claim_numbers: tuple[int, ...], evidence_numbers: tuple[int, ...]) -> bool:
+    shared_length = min(len(claim_numbers), len(evidence_numbers))
+    if shared_length < 2:
+        return claim_numbers == evidence_numbers
+    return claim_numbers[:shared_length] == evidence_numbers[:shared_length]
+
+
+def _version_is_newer(evidence_numbers: tuple[int, ...], claim_numbers: tuple[int, ...]) -> bool:
+    max_length = max(len(claim_numbers), len(evidence_numbers))
+    claim_padded = claim_numbers + (0,) * (max_length - len(claim_numbers))
+    evidence_padded = evidence_numbers + (0,) * (max_length - len(evidence_numbers))
+    return evidence_padded > claim_padded
+
+
+def _compare_version_candidates(
+    claim: dict[str, Any],
+    claim_candidates: list[dict[str, Any]],
+    evidence_candidates: list[dict[str, Any]],
+    temporal_category: str | None,
+) -> dict[str, Any] | None:
+    for claim_candidate in claim_candidates:
+        compatible_evidence = [
+            candidate
+            for candidate in evidence_candidates
+            if _version_subjects_compatible(claim, claim_candidate, candidate)
+        ]
+        if not compatible_evidence:
+            compatible_evidence = evidence_candidates
+        if not compatible_evidence:
+            continue
+        evidence_candidate = max(compatible_evidence, key=lambda candidate: candidate["numbers"])
+        claim_value = str(claim_candidate["raw"])
+        evidence_value = str(evidence_candidate["raw"])
+        if _versions_equivalent(claim_candidate["numbers"], evidence_candidate["numbers"]):
+            return {
+                "supports": True,
+                "partial": True,
+                "conflict_type": None,
+                "claim_value": claim_value,
+                "evidence_value": evidence_value,
+                "detected_conflict": None,
+            }
+        conflict_type = "outdated" if _is_current_or_latest(claim, temporal_category) and _version_is_newer(
+            evidence_candidate["numbers"], claim_candidate["numbers"]
+        ) else "contradicted"
+        return {
+            "supports": False,
+            "partial": False,
+            "conflict_type": conflict_type,
+            "claim_value": claim_value,
+            "evidence_value": evidence_value,
+            "detected_conflict": f"Claim value: {claim_value}; Evidence value: {evidence_value}.",
+        }
+    return None
+
+
 def _asks_person_or_role(claim: dict[str, Any], temporal_category: str | None) -> bool:
     text = f"{claim.get('claim_text') or ''} {claim.get('claim_type') or ''}".lower()
     return temporal_category == "HISTORICAL" or re.search(r"\b(ceo|president|minister|founder|leader|won)\b", text) is not None
@@ -290,8 +411,10 @@ def _compare_claim_and_evidence_values(
     claim_text = str(claim.get("claim_text") or "")
     evidence_statement = _primary_evidence_statement(evidence_text)
     comparison_text = evidence_statement or evidence_text
-    claim_versions = _extract_versions(claim_text)
-    evidence_versions = _extract_versions(comparison_text)
+    claim_version_candidates = _extract_version_candidates(claim_text)
+    evidence_version_candidates = _extract_version_candidates(comparison_text)
+    claim_versions = [candidate["raw"] for candidate in claim_version_candidates]
+    evidence_versions = [candidate["raw"] for candidate in evidence_version_candidates]
     claim_years = _extract_years(claim_text)
     evidence_years = _extract_years(comparison_text)
     claim_dates = _extract_dates(claim_text)
@@ -318,15 +441,12 @@ def _compare_claim_and_evidence_values(
         "detected_conflict": None,
     }
 
-    if claim_versions and evidence_versions:
-        claim_value = claim_versions[0]
-        evidence_value = evidence_versions[0]
-        if _same_major_subject_version(claim_value, evidence_value) and (claim_lifecycle or evidence_lifecycle or claim_capability or evidence_capability):
+    if claim_version_candidates and evidence_version_candidates:
+        version_comparison = _compare_version_candidates(claim, claim_version_candidates, evidence_version_candidates, temporal_category)
+        if version_comparison is None:
             pass
         else:
-            comparison.update(_value_comparison(claim_value, evidence_value, "version"))
-            if claim_value != evidence_value and _is_current_or_latest(claim, temporal_category):
-                comparison["conflict_type"] = "outdated"
+            comparison.update(version_comparison)
             return comparison
 
     if claim_lifecycle and evidence_lifecycle:

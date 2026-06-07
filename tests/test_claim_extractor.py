@@ -100,6 +100,22 @@ def test_latest_python_example_schema_fields() -> None:
     assert result["needs_verification"] is True
 
 
+def test_terse_compact_python_version_answer_extracts_latest_claim() -> None:
+    result = extract_claims(
+        "What is the latest Python version?",
+        "Python3.14.",
+        "RECENT_ONLY",
+    )
+    claim = result["claims"][0]
+
+    assert result["total_claims"] == 1
+    assert claim["claim_text"] == "Python 3.14 is the latest Python version."
+    assert claim["claim_type"] == "software_version"
+    assert claim["entities"] == ["Python", "Python 3.14"]
+    assert claim["evidence_need"] == "fresh"
+    assert result["needs_verification"] is True
+
+
 def test_static_definition_makes_verification_optional() -> None:
     result = extract_claims(
         "What is binary search?",

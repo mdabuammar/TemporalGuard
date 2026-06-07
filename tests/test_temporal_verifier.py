@@ -322,6 +322,112 @@ def test_outdated_python_result_has_conflict_fields() -> None:
     assert result["overall_verification_status"] == "NEEDS_CORRECTION"
 
 
+def test_python_compact_version_matches_spaced_evidence_version() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python3.14 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Python 3.14.5 is available",
+                            "publisher": "Python Software Foundation",
+                            "evidence_summary": "The latest release is Python 3.14.5.",
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 0.98,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "SUPPORTED"
+    assert verification["claim_value"] == "Python 3.14"
+    assert verification["evidence_value"] == "Python 3.14.5"
+    assert verification["detected_conflict"] is None
+
+
+def test_latest_python_older_major_minor_is_outdated_against_newer_evidence() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.10 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Python 3.14.5 release",
+                            "publisher": "Python Software Foundation",
+                            "evidence_summary": "Latest release is Python 3.14.5.",
+                            "source_type": "official",
+                            "relevance_score": 0.98,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "OUTDATED"
+    assert verification["claim_value"] == "Python 3.10"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
 def test_weak_freshness_blocks_supported_for_recent_claim() -> None:
     result = verify_temporal_claims(
         "Is the system current?",

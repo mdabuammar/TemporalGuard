@@ -231,16 +231,19 @@ def _infer_freshness_hint(result: SearchResult, claim: dict[str, Any]) -> str:
 
 
 def _to_evidence_item(result: SearchResult, evidence_id: str, claim: dict[str, Any], score: float) -> dict[str, Any]:
+    evidence_summary = _summary_from_result(result)
     return {
         "evidence_id": evidence_id,
         "title": result.title,
         "url": result.url,
+        "snippet": result.snippet,
         "source_type": _validate_source_type(result.source_type),
         "publisher": result.publisher or "unknown",
         "published_date": result.published_date,
         "updated_date": result.updated_date,
         "retrieved_at": _now_utc_iso(),
-        "evidence_summary": _summary_from_result(result),
+        "evidence_summary": evidence_summary,
+        "evidence_value": _extract_evidence_value(result),
         "relevance_score": round(score, 2),
         "freshness_hint": _infer_freshness_hint(result, claim),
         "quote": None,
@@ -325,6 +328,31 @@ def _summary_from_result(result: SearchResult) -> str:
     if snippet:
         return snippet[:240].rstrip()
     return f"Search result titled '{result.title}' from {result.publisher or 'unknown'}."
+
+
+def _extract_evidence_value(result: SearchResult) -> str | None:
+    text = f"{result.title} {result.snippet}"
+    version = _extract_version_value(text)
+    if version:
+        return version
+    return None
+
+
+def _extract_version_value(text: str) -> str | None:
+    match = re.search(
+        r"\b(?:(?P<subject>[A-Za-z][A-Za-z0-9+#-]{1,30})[\s_-]*)?"
+        r"(?:v(?:ersion)?[\s_-]*)?"
+        r"(?P<version>\d+(?:\.\d+){1,3})\b",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    version = match.group("version")
+    subject = str(match.group("subject") or "").strip(" -_")
+    if subject and subject.lower() not in {"v", "version", "release", "latest", "current", "stable", "download"}:
+        return f"{subject} {version}"
+    return version
 
 
 def _important_terms(text: str) -> list[str]:

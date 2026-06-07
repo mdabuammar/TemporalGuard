@@ -13,6 +13,8 @@ from temporalguard.search.providers import (
     create_search_provider,
     infer_source_type_from_url,
 )
+from temporalguard.skills.fresh_evidence_retriever import retrieve_fresh_evidence
+from temporalguard.skills.temporal_verifier import verify_temporal_claims
 
 
 @pytest.mark.parametrize(
@@ -169,6 +171,71 @@ def test_tavily_provider_parses_mocked_response(monkeypatch) -> None:
     assert calls[0]["args"][0] == "https://api.tavily.com/search"
     assert calls[0]["kwargs"]["json"]["api_key"] == "test-key"
     assert calls[0]["kwargs"]["json"]["max_results"] == 1
+
+
+def test_live_style_tavily_result_verifies_latest_python_version(monkeypatch) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Download Python",
+                        "url": "https://www.python.org/downloads/",
+                        "content": "Latest Python 3.14.5 release is available for download.",
+                        "published_date": "2026-06-01",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.post", lambda *args, **kwargs: FakeResponse())
+    provider = TavilySearchProvider(api_key="test-key")
+    claims_payload = {
+        "claims": [
+            {
+                "claim_id": "C1",
+                "claim_text": "Python3.14 is the latest Python version.",
+                "claim_type": "software_version",
+                "entities": ["Python"],
+                "temporal_sensitivity": "high",
+                "temporal_anchor": "latest",
+                "evidence_need": "fresh",
+            }
+        ]
+    }
+
+    evidence_payload = retrieve_fresh_evidence(
+        "What is the latest Python version?",
+        claims_payload,
+        "RECENT_ONLY",
+        provider,
+    )
+    verification = verify_temporal_claims(
+        "What is the latest Python version?",
+        claims_payload,
+        evidence_payload,
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+
+    evidence = evidence_payload["evidence_results"][0]["evidence_items"][0]
+    result = verification["verification_results"][0]
+    assert evidence["evidence_value"] == "Python 3.14.5"
+    assert result["verification_status"] == "SUPPORTED"
+    assert result["claim_value"] == "Python 3.14"
+    assert result["evidence_value"] == "Python 3.14.5"
 
 
 def test_brave_provider_parses_mocked_response(monkeypatch) -> None:

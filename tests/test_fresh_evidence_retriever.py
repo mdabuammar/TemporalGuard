@@ -211,6 +211,8 @@ def test_success_result_contains_required_evidence_fields() -> None:
     assert evidence["updated_date"] == "2026-06-01"
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", evidence["retrieved_at"])
     assert evidence["evidence_summary"] == "Download the latest version of Python."
+    assert evidence["snippet"] == "Download the latest version of Python."
+    assert evidence["evidence_value"] is None
     assert evidence["relevance_score"] >= 0.70
     assert evidence["freshness_hint"] == "fresh"
     assert evidence["quote"] is None
@@ -334,3 +336,41 @@ def test_authoritative_sources_rank_before_weak_sources() -> None:
 
     evidence = result["evidence_results"][0]["evidence_items"][0]
     assert evidence["source_type"] == "official"
+
+
+def test_evidence_snippet_version_value_is_extracted() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Python Downloads",
+                "url": "https://www.python.org/downloads/",
+                "snippet": "Latest release is Python 3.14.5 and source archives are available.",
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+                "updated_date": "2026-06-01",
+            }
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python3.14 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_sensitivity": "high",
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+        provider,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["evidence_value"] == "Python 3.14.5"
+    assert "Python 3.14.5" in evidence["evidence_summary"]

@@ -148,6 +148,11 @@ def extract_claims(
         }
         claims.append(claim)
 
+    if not claims:
+        fallback_claim = _fallback_version_claim(question, answer, temporal_category)
+        if fallback_claim:
+            claims.append(fallback_claim)
+
     claims = _prioritize_claims(claims, temporal_category)[:limit]
     for index, claim in enumerate(claims, start=1):
         claim["claim_id"] = f"C{index}"
@@ -236,6 +241,54 @@ def _is_checkable_claim(claim: str) -> bool:
     if text.strip().startswith(("you should", "you can", "i think", "in my opinion")):
         return False
     return any(verb in text for verb in FACT_VERBS) or _has_number_or_date(claim)
+
+
+def _fallback_version_claim(question: str, answer: str, temporal_category: str | None) -> Claim | None:
+    source = f"{question} {answer}"
+    if temporal_category not in {"RECENT_ONLY", "TIME_SENSITIVE", "VERSION_DEPENDENT"} and not re.search(
+        r"\b(latest|current|newest|version|release)\b", source, re.IGNORECASE
+    ):
+        return None
+    match = re.search(
+        r"\b(?:(?P<subject>[A-Za-z][A-Za-z0-9+#-]{1,30})[\s_-]*)?"
+        r"(?:v(?:ersion)?[\s_-]*)?"
+        r"(?P<version>\d+(?:\.\d+){1,3})\b",
+        answer,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    version = match.group("version")
+    subject = _version_subject(match.group("subject"), question)
+    if not subject:
+        return None
+    claim_text = f"{subject} {version} is the latest {subject} version."
+    temporal_anchor = _extract_temporal_anchor(claim_text, question)
+    return {
+        "claim_id": "",
+        "claim_text": claim_text,
+        "normalized_claim": _normalize_claim(claim_text),
+        "claim_type": "software_version",
+        "entities": _unique_preserve_case([subject, f"{subject} {version}"]),
+        "temporal_sensitivity": "high",
+        "requires_verification": True,
+        "temporal_anchor": temporal_anchor or "latest",
+        "evidence_need": "fresh" if temporal_category in {"RECENT_ONLY", "TIME_SENSITIVE"} else "version_specific",
+        "confidence": 0.82,
+    }
+
+
+def _version_subject(raw_subject: str | None, question: str) -> str | None:
+    subject = str(raw_subject or "").strip(" -_")
+    if subject and subject.lower() not in {"v", "version", "release", "latest", "current", "stable"}:
+        return subject
+    for term in TECH_TERMS:
+        if re.search(rf"\b{re.escape(term)}\b", question, re.IGNORECASE):
+            return term
+    match = re.search(r"\blatest\s+([A-Za-z][A-Za-z0-9+#.-]{1,30})\s+version\b", question, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
 
 
 def _resolve_pronoun_claim(claim: str, question: str) -> str:
