@@ -428,6 +428,303 @@ def test_latest_python_older_major_minor_is_outdated_against_newer_evidence() ->
     assert verification["evidence_value"] == "Python 3.14.5"
 
 
+def test_python_stable_release_preferred_over_future_development_version() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.10 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Download Python 3.14.5",
+                            "publisher": "Python Software Foundation",
+                            "evidence_summary": (
+                                "Python 3.14.5 is the latest stable release available for download. "
+                                "Python 3.16 is a future development preview."
+                            ),
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 0.99,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "OUTDATED"
+    assert verification["claim_value"] == "Python 3.10"
+    assert verification["evidence_value"] == "Python 3.14.5"
+    assert "3.16" not in verification["evidence_value"]
+
+
+def test_python_evidence_value_overrides_older_release_title() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.16 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Python Release Python 3.14.0",
+                            "url": "https://www.python.org/downloads/release/python-3140",
+                            "publisher": "python.org",
+                            "snippet": (
+                                "Python 3.14.0 has been superseded by Python 3.14.5. "
+                                "Release date: Oct. 7, 2025 is the newest major release."
+                            ),
+                            "evidence_summary": (
+                                "Python 3.14.0 has been superseded by Python 3.14.5."
+                            ),
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 1.0,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "CONTRADICTED"
+    assert verification["claim_value"] == "Python 3.16"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
+def test_version_claim_without_evidence_version_is_insufficient_not_entity_supported() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.10 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Python versions",
+                            "publisher": "Python documentation",
+                            "evidence_summary": "This page describes Python version support policy.",
+                            "source_type": "documentation",
+                            "relevance_score": 0.80,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.90,
+                    "claim_reliability_score": 0.90,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "INSUFFICIENT_EVIDENCE"
+    assert verification["claim_value"] == "Python 3.10"
+    assert verification["evidence_value"] is None
+
+
+def test_python_verifier_selects_best_version_bearing_evidence_item() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.10 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Python versions",
+                            "url": "https://devguide.python.org/versions",
+                            "publisher": "Python documentation",
+                            "evidence_summary": "This page describes Python version support policy.",
+                            "source_type": "documentation",
+                            "relevance_score": 1.0,
+                        },
+                        {
+                            "evidence_id": "E2",
+                            "title": "Python Source Releases",
+                            "url": "https://www.python.org/downloads/source",
+                            "publisher": "Python Software Foundation",
+                            "evidence_summary": "The latest stable source release is Python 3.14.5.",
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 0.94,
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "OUTDATED"
+    assert verification["best_evidence_id"] == "E2"
+    assert verification["claim_value"] == "Python 3.10"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
+def test_python_verifier_ignores_unrelated_download_tool_versions() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.16 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Download Python for Windows",
+                            "url": "https://www.python.org/downloads/windows",
+                            "publisher": "python.org",
+                            "evidence_summary": "The Python install manager 26.2 is available for Windows users.",
+                            "evidence_value": "manager 26.2",
+                            "source_type": "official",
+                            "relevance_score": 1.0,
+                        },
+                        {
+                            "evidence_id": "E2",
+                            "title": "Python Source Releases",
+                            "url": "https://www.python.org/downloads/source",
+                            "publisher": "python.org",
+                            "evidence_summary": "Stable Releases · Python 3.14.5 - May 10, 2026.",
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 1.0,
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "CONTRADICTED"
+    assert verification["best_evidence_id"] == "E2"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
 def test_weak_freshness_blocks_supported_for_recent_claim() -> None:
     result = verify_temporal_claims(
         "Is the system current?",

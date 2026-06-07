@@ -49,6 +49,15 @@ SOURCE_PRIORITY = {
 
 TEMPORAL_CATEGORIES_REQUIRING_RETRIEVAL = {"RECENT_ONLY", "TIME_SENSITIVE", "VERSION_DEPENDENT", "HISTORICAL"}
 WEAK_DOMAIN_HINTS = ("blog", "forum", "reddit", "medium.com", "quora", "stack overflow")
+PYTHON_DOWNLOAD_URL_PATTERN = re.compile(r"https?://(?:www\.)?python\.org/downloads/(?:release/)?", re.IGNORECASE)
+UNSTABLE_VERSION_HINT_PATTERN = re.compile(
+    r"\b(alpha|beta|release candidate|rc\d*|preview|pre[- ]?release|development|dev|schedule|planned|future)\b",
+    re.IGNORECASE,
+)
+STABLE_RELEASE_HINT_PATTERN = re.compile(
+    r"\b(latest|stable|download|downloads|release|released|available)\b",
+    re.IGNORECASE,
+)
 
 
 def retrieve_fresh_evidence(
@@ -119,7 +128,12 @@ def retrieve_fresh_evidence(
             continue
 
         try:
-            raw_results = search_provider.search(query, max_results=source_limit * 2)
+            raw_limit = source_limit * 2
+            if _is_python_version_claim(claim):
+                raw_limit = max(raw_limit, source_limit * 4, 6)
+            raw_results = search_provider.search(query, max_results=raw_limit)
+            if _is_python_version_claim(claim):
+                raw_results = _augment_python_version_results(search_provider, query, raw_results, raw_limit)
         except Exception as exc:  # pragma: no cover - defensive error boundary
             warning = f"Search provider failed for {claim_id}: {exc}"
             warnings.append(warning)
@@ -154,6 +168,39 @@ def retrieve_fresh_evidence(
     }
 
 
+def _augment_python_version_results(
+    search_provider: SearchProvider,
+    original_query: str,
+    raw_results: list[SearchResult],
+    max_results: int,
+) -> list[SearchResult]:
+    results = list(raw_results)
+    fallback_queries = [
+        "Python downloads latest stable release",
+        "Python Source Releases latest stable Python",
+        "Download Python latest source release python.org",
+    ]
+    seen_queries = {original_query.lower()}
+    for fallback_query in fallback_queries:
+        if fallback_query.lower() in seen_queries:
+            continue
+        seen_queries.add(fallback_query.lower())
+        extra_results = search_provider.search(fallback_query, max_results=max_results)
+        results.extend(_coerce_search_result(result) for result in extra_results)
+    return _dedupe_search_results(results)
+
+
+def _dedupe_search_results(results: list[SearchResult]) -> list[SearchResult]:
+    seen: set[str] = set()
+    deduped: list[SearchResult] = []
+    for result in results:
+        key = str(result.url or result.title or result.snippet).strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            deduped.append(result)
+    return deduped
+
+
 def _extract_claims(claims_payload: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(claims_payload, dict):
         return []
@@ -169,6 +216,9 @@ def _build_search_query(claim: dict[str, Any], question: str, temporal_category:
     anchor = claim.get("temporal_anchor")
     evidence_need = str(claim.get("evidence_need") or "")
     claim_text = str(claim.get("claim_text") or "")
+
+    if _is_python_version_claim(claim):
+        return _compact_query("Python latest stable release site:python.org/downloads")
 
     base_terms = entities[:2] or _important_terms(claim_text) or _important_terms(question)
     terms = list(base_terms)
@@ -206,11 +256,42 @@ def _rank_search_results(results: list[SearchResult], claim: dict[str, Any]) -> 
     ranked = [_RankedResult(result=result, score=_infer_relevance_score(result, claim)) for result in results]
     return sorted(
         ranked,
-        key=lambda ranked_result: (
-            -ranked_result.score,
-            SOURCE_PRIORITY.get(_validate_source_type(ranked_result.result.source_type), 99),
-        ),
+        key=lambda ranked_result: _ranking_key(ranked_result, claim),
     )
+
+
+def _ranking_key(ranked_result: _RankedResult, claim: dict[str, Any]) -> tuple[Any, ...]:
+    result = ranked_result.result
+    if _is_python_version_claim(claim):
+        version_key = _stable_version_sort_key(result)
+        text = f"{result.title} {result.snippet} {result.url}"
+        return (
+            0 if _is_python_downloads_result(result) else 1,
+            1 if _has_unstable_version_context(text) else 0,
+            tuple(-part for part in version_key),
+            -ranked_result.score,
+            SOURCE_PRIORITY.get(_validate_source_type(result.source_type), 99),
+        )
+    return (
+        -ranked_result.score,
+        SOURCE_PRIORITY.get(_validate_source_type(result.source_type), 99),
+    )
+
+
+def _stable_version_sort_key(result: SearchResult) -> tuple[int, int, int, int]:
+    text = f"{result.title} {result.snippet} {result.url}"
+    value = _extract_version_value(
+        text,
+        prefer_stable=_is_python_downloads_result(result),
+        expected_subject="python" if _is_python_downloads_result(result) else None,
+    )
+    if not value:
+        return (0, 0, 0, 0)
+    match = re.search(r"\b(\d+(?:\.\d+){1,3})\b", value)
+    if not match:
+        return (0, 0, 0, 0)
+    parts = tuple(int(part) for part in match.group(1).split("."))
+    return parts + (0,) * (4 - len(parts))
 
 
 def _infer_freshness_hint(result: SearchResult, claim: dict[str, Any]) -> str:
@@ -257,6 +338,7 @@ def _infer_relevance_score(result: SearchResult, claim: dict[str, Any]) -> float
 
     haystack = f"{result.title} {result.snippet} {result.url}".lower()
     claim_text = str(claim.get("claim_text") or "")
+    is_python_version_claim = _is_python_version_claim(claim)
     entities = [str(entity).lower() for entity in claim.get("entities", []) if str(entity).strip()]
     matched_entities = sum(1 for entity in entities if entity in haystack)
     if entities:
@@ -269,6 +351,14 @@ def _infer_relevance_score(result: SearchResult, claim: dict[str, Any]) -> float
     for term in _important_terms(claim_text)[:4]:
         if term.lower() in haystack:
             score += 0.03
+
+    if is_python_version_claim:
+        if _is_python_downloads_result(result):
+            score += 0.35
+        if _has_stable_release_context(f"{result.title} {result.snippet} {result.url}"):
+            score += 0.12
+        if _has_unstable_version_context(f"{result.title} {result.snippet} {result.url}"):
+            score -= 0.35
 
     if any(weak in haystack for weak in WEAK_DOMAIN_HINTS):
         score -= 0.25
@@ -332,27 +422,96 @@ def _summary_from_result(result: SearchResult) -> str:
 
 def _extract_evidence_value(result: SearchResult) -> str | None:
     text = f"{result.title} {result.snippet}"
-    version = _extract_version_value(text)
+    version = _extract_version_value(
+        text,
+        prefer_stable=_is_python_downloads_result(result),
+        expected_subject="python" if _is_python_downloads_result(result) else None,
+    )
     if version:
         return version
     return None
 
 
-def _extract_version_value(text: str) -> str | None:
-    match = re.search(
+def _extract_version_value(
+    text: str,
+    prefer_stable: bool = False,
+    expected_subject: str | None = None,
+) -> str | None:
+    pattern = re.compile(
         r"\b(?:(?P<subject>[A-Za-z][A-Za-z0-9+#-]{1,30})[\s_-]*)?"
         r"(?:v(?:ersion)?[\s_-]*)?"
         r"(?P<version>\d+(?:\.\d+){1,3})\b",
-        text or "",
         flags=re.IGNORECASE,
     )
-    if not match:
+    candidates = []
+    for match in pattern.finditer(text or ""):
+        start = max(0, match.start() - 48)
+        end = min(len(text or ""), match.end() + 48)
+        context = (text or "")[start:end]
+        raw_subject = str(match.group("subject") or "").strip(" -_")
+        candidates.append(
+            {
+                "match": match,
+                "numbers": tuple(int(part) for part in match.group("version").split(".")),
+                "subject": _normalize_version_subject(raw_subject),
+                "stable": _has_stable_release_context(context) and not _has_unstable_version_context(context),
+                "unstable": _has_unstable_version_context(context),
+            }
+        )
+    if not candidates:
         return None
+    if expected_subject:
+        expected = _normalize_version_subject(expected_subject)
+        subject_matches = [
+            candidate
+            for candidate in candidates
+            if not candidate["subject"] or candidate["subject"] == expected
+        ]
+        if not subject_matches:
+            return None
+        candidates = subject_matches
+    usable = [candidate for candidate in candidates if not candidate["unstable"]]
+    if prefer_stable:
+        stable_candidates = [candidate for candidate in usable if candidate["stable"]]
+        if stable_candidates:
+            usable = stable_candidates
+    if not usable:
+        return None
+    match = max(usable, key=lambda candidate: candidate["numbers"])["match"]
     version = match.group("version")
     subject = str(match.group("subject") or "").strip(" -_")
     if subject and subject.lower() not in {"v", "version", "release", "latest", "current", "stable", "download"}:
         return f"{subject} {version}"
     return version
+
+
+def _normalize_version_subject(subject: str) -> str:
+    normalized = re.sub(r"[^a-z0-9+#]+", "", subject.lower())
+    aliases = {
+        "python3": "python",
+        "cpython": "python",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _is_python_version_claim(claim: dict[str, Any]) -> bool:
+    text = f"{claim.get('claim_text') or ''} {' '.join(str(entity) for entity in claim.get('entities', []))}"
+    return (
+        str(claim.get("claim_type") or "") == "software_version"
+        and re.search(r"\bpython\b", text, re.IGNORECASE) is not None
+    )
+
+
+def _is_python_downloads_result(result: SearchResult) -> bool:
+    return PYTHON_DOWNLOAD_URL_PATTERN.search(str(result.url or "")) is not None
+
+
+def _has_unstable_version_context(text: str) -> bool:
+    return UNSTABLE_VERSION_HINT_PATTERN.search(text or "") is not None
+
+
+def _has_stable_release_context(text: str) -> bool:
+    return STABLE_RELEASE_HINT_PATTERN.search(text or "") is not None
 
 
 def _important_terms(text: str) -> list[str]:

@@ -29,6 +29,15 @@ STATUS_GROUPS = {
     "released": {"released"},
     "not_released": {"not released"},
 }
+UNSTABLE_VERSION_HINT_PATTERN = re.compile(
+    r"\b(alpha|beta|release candidate|rc\d*|preview|pre[- ]?release|development|dev|schedule|planned|future)\b",
+    re.IGNORECASE,
+)
+STABLE_RELEASE_HINT_PATTERN = re.compile(
+    r"\b(latest|stable|download|downloads|release|released|available)\b",
+    re.IGNORECASE,
+)
+PYTHON_DOWNLOAD_URL_PATTERN = re.compile(r"https?://(?:www\.)?python\.org/downloads/", re.IGNORECASE)
 
 
 def verify_temporal_claims(
@@ -62,7 +71,7 @@ def verify_temporal_claims(
     for claim_id, claim in claims_by_id.items():
         evidence_result = evidence_by_id.get(claim_id, {})
         freshness_result = freshness_by_id.get(claim_id)
-        evidence_item = _select_best_evidence(evidence_result, freshness_result)
+        evidence_item = _select_best_evidence(evidence_result, freshness_result, claim)
         evidence_text = _build_evidence_text(evidence_item) if evidence_item else ""
         comparison = _compare_claim_and_evidence_values(claim, evidence_text, temporal_category)
         status = _infer_verification_status(claim, evidence_item, freshness_result, comparison, temporal_category)
@@ -144,27 +153,68 @@ def _get_freshness_by_claim_id(freshness_payload: dict[str, Any] | None) -> dict
 def _select_best_evidence(
     evidence_result: dict[str, Any],
     freshness_result: dict[str, Any] | None,
+    claim: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     items = evidence_result.get("evidence_items") if isinstance(evidence_result, dict) else None
     if not isinstance(items, list) or not items:
         return None
-    best_id = freshness_result.get("best_evidence_id") if isinstance(freshness_result, dict) else None
-    if best_id:
-        for item in items:
-            if isinstance(item, dict) and item.get("evidence_id") == best_id:
-                return item
     valid_items = [item for item in items if isinstance(item, dict)]
     if not valid_items:
         return None
+    if isinstance(claim, dict) and _is_version_claim(claim):
+        version_items = [item for item in valid_items if _best_version_candidate_for_item(item, claim)]
+        if version_items:
+            return max(version_items, key=lambda item: _version_evidence_sort_key(item, claim))
+    best_id = freshness_result.get("best_evidence_id") if isinstance(freshness_result, dict) else None
+    if best_id:
+        for item in valid_items:
+            if item.get("evidence_id") == best_id:
+                return item
     return max(valid_items, key=lambda item: float(item.get("relevance_score") or 0.0))
+
+
+def _version_evidence_sort_key(item: dict[str, Any], claim: dict[str, Any] | None = None) -> tuple[Any, ...]:
+    candidate = _best_version_candidate_for_item(item, claim)
+    numbers = candidate["numbers"] if candidate else (0, 0, 0, 0)
+    text = _build_evidence_text(item)
+    return (
+        1 if PYTHON_DOWNLOAD_URL_PATTERN.search(str(item.get("url") or "")) else 0,
+        1 if candidate and candidate.get("stable") else 0,
+        0 if candidate and candidate.get("unstable") else 1,
+        numbers,
+        float(item.get("relevance_score") or 0.0),
+    )
+
+
+def _best_version_candidate_for_item(
+    item: dict[str, Any],
+    claim: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    candidates = _extract_version_candidates(_build_evidence_text(item))
+    if not candidates:
+        return None
+    if isinstance(claim, dict):
+        claim_candidates = _extract_version_candidates(str(claim.get("claim_text") or ""))
+        if claim_candidates:
+            candidates = [
+                candidate
+                for candidate in candidates
+                if any(_version_subjects_compatible(claim, claim_candidate, candidate) for claim_candidate in claim_candidates)
+            ]
+            if not candidates:
+                return None
+    stable = [candidate for candidate in candidates if candidate.get("stable")]
+    non_unstable = [candidate for candidate in candidates if not candidate.get("unstable")]
+    pool = stable or non_unstable or candidates
+    return max(pool, key=lambda candidate: candidate["numbers"])
 
 
 def _build_evidence_text(evidence_item: dict[str, Any]) -> str:
     parts = [
+        str(evidence_item.get("evidence_value") or ""),
         str(evidence_item.get("title") or ""),
         str(evidence_item.get("publisher") or ""),
         str(evidence_item.get("evidence_summary") or ""),
-        str(evidence_item.get("evidence_value") or ""),
         str(evidence_item.get("snippet") or ""),
         str(evidence_item.get("content") or ""),
         str(evidence_item.get("quote") or ""),
@@ -189,12 +239,15 @@ def _extract_version_candidates(text: str) -> list[dict[str, Any]]:
         raw_subject = match.group("subject") or ""
         subject = _normalize_version_subject(raw_subject)
         raw = match.group(0).strip(" .,:;()[]{}")
+        context = _version_context(text or "", match.start(), match.end())
         candidates.append(
             {
                 "raw": _format_version_value(subject, raw_subject, version, raw),
                 "subject": subject,
                 "numbers": tuple(int(part) for part in version.split(".")),
                 "normalized": ".".join(str(int(part)) for part in version.split(".")),
+                "stable": _has_stable_release_context(context) and not _has_unstable_version_context(context),
+                "unstable": _has_unstable_version_context(context),
             }
         )
     return _unique_version_candidates(candidates)
@@ -331,6 +384,18 @@ def _unique_version_candidates(candidates: list[dict[str, Any]]) -> list[dict[st
     return unique_candidates
 
 
+def _version_context(text: str, start: int, end: int) -> str:
+    return text[max(0, start - 56) : min(len(text), end + 56)]
+
+
+def _has_unstable_version_context(text: str) -> bool:
+    return UNSTABLE_VERSION_HINT_PATTERN.search(text or "") is not None
+
+
+def _has_stable_release_context(text: str) -> bool:
+    return STABLE_RELEASE_HINT_PATTERN.search(text or "") is not None
+
+
 def _version_subjects_compatible(claim: dict[str, Any], claim_candidate: dict[str, Any], evidence_candidate: dict[str, Any]) -> bool:
     claim_subject = str(claim_candidate.get("subject") or "")
     evidence_subject = str(evidence_candidate.get("subject") or "")
@@ -369,10 +434,11 @@ def _compare_version_candidates(
             if _version_subjects_compatible(claim, claim_candidate, candidate)
         ]
         if not compatible_evidence:
-            compatible_evidence = evidence_candidates
-        if not compatible_evidence:
             continue
-        evidence_candidate = max(compatible_evidence, key=lambda candidate: candidate["numbers"])
+        stable_evidence = [candidate for candidate in compatible_evidence if candidate.get("stable")]
+        non_unstable_evidence = [candidate for candidate in compatible_evidence if not candidate.get("unstable")]
+        candidate_pool = stable_evidence or non_unstable_evidence or compatible_evidence
+        evidence_candidate = max(candidate_pool, key=lambda candidate: candidate["numbers"])
         claim_value = str(claim_candidate["raw"])
         evidence_value = str(evidence_candidate["raw"])
         if _versions_equivalent(claim_candidate["numbers"], evidence_candidate["numbers"]):
@@ -448,6 +514,12 @@ def _compare_claim_and_evidence_values(
         else:
             comparison.update(version_comparison)
             return comparison
+
+    if claim_version_candidates and _is_version_claim(claim):
+        comparison["claim_value"] = str(claim_version_candidates[0]["raw"])
+        comparison["supports"] = False
+        comparison["partial"] = False
+        return comparison
 
     if claim_lifecycle and evidence_lifecycle:
         comparison.update(_value_comparison(claim_lifecycle, evidence_lifecycle, "status"))
@@ -705,6 +777,11 @@ def _terms(text: str) -> list[str]:
 def _is_current_or_latest(claim: dict[str, Any], temporal_category: str | None) -> bool:
     text = f"{claim.get('claim_text') or ''} {claim.get('temporal_anchor') or ''} {claim.get('evidence_need') or ''}"
     return temporal_category in STRICT_TEMPORAL_CATEGORIES or re.search(r"\b(latest|current|newest|still|active|fresh)\b", text, re.I) is not None
+
+
+def _is_version_claim(claim: dict[str, Any]) -> bool:
+    text = f"{claim.get('claim_text') or ''} {claim.get('claim_type') or ''} {claim.get('evidence_need') or ''}"
+    return re.search(r"\b(version|release|software_version|version_specific|latest)\b", text, re.IGNORECASE) is not None
 
 
 def _is_still_or_current_claim(claim: dict[str, Any]) -> bool:
