@@ -13,8 +13,22 @@ from temporalguard.search.providers import (
     create_search_provider,
     infer_source_type_from_url,
 )
+from temporalguard.skills.correction_generator import generate_correction
 from temporalguard.skills.fresh_evidence_retriever import retrieve_fresh_evidence
+from temporalguard.skills.outdated_answer_detector import detect_outdated_answer
+from temporalguard.skills.source_freshness_scorer import score_source_freshness
 from temporalguard.skills.temporal_verifier import verify_temporal_claims
+
+
+@pytest.fixture(autouse=True)
+def disable_live_official_python_fetch(monkeypatch) -> None:
+    class EmptyResponse:
+        text = ""
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr("temporalguard.skills.fresh_evidence_retriever.requests.get", lambda *args, **kwargs: EmptyResponse())
 
 
 @pytest.mark.parametrize(
@@ -46,6 +60,7 @@ def test_search_result_to_dict_and_defaults() -> None:
         "title": "Download Python",
         "url": "https://www.python.org/downloads/",
         "snippet": "",
+        "content": "",
         "publisher": "unknown",
         "published_date": None,
         "updated_date": None,
@@ -171,6 +186,33 @@ def test_tavily_provider_parses_mocked_response(monkeypatch) -> None:
     assert calls[0]["args"][0] == "https://api.tavily.com/search"
     assert calls[0]["kwargs"]["json"]["api_key"] == "test-key"
     assert calls[0]["kwargs"]["json"]["max_results"] == 1
+    assert calls[0]["kwargs"]["json"]["include_raw_content"] is True
+
+
+def test_tavily_provider_preserves_raw_content(monkeypatch) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Python Source Releases",
+                        "url": "https://www.python.org/downloads/source/",
+                        "content": "Short Tavily summary.",
+                        "raw_content": "Stable Releases include Python 3.14.5 as the latest source release.",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.post", lambda *args, **kwargs: FakeResponse())
+
+    provider = TavilySearchProvider(api_key="test-key")
+    result = provider.search("latest Python version", max_results=1)[0]
+
+    assert result.snippet == "Short Tavily summary."
+    assert result.content == "Stable Releases include Python 3.14.5 as the latest source release."
 
 
 def test_live_style_tavily_result_verifies_latest_python_version(monkeypatch) -> None:
@@ -236,6 +278,155 @@ def test_live_style_tavily_result_verifies_latest_python_version(monkeypatch) ->
     assert result["verification_status"] == "SUPPORTED"
     assert result["claim_value"] == "Python 3.14"
     assert result["evidence_value"] == "Python 3.14.5"
+
+
+def test_tavily_python_downloads_content_corrects_outdated_latest_version(monkeypatch) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Download Python",
+                        "url": "https://www.python.org/downloads/",
+                        "content": "Download the latest source release.",
+                        "raw_content": "Latest Python 3 Release - Python 3.14.5 is available for download.",
+                        "published_date": "2026-05-10",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.post", lambda *args, **kwargs: FakeResponse())
+    provider = TavilySearchProvider(api_key="test-key")
+    question = "What is the latest Python version?"
+    answer = "The latest Python version is 3.12.4."
+    claims_payload = {
+        "claims": [
+            {
+                "claim_id": "C1",
+                "claim_text": "Python 3.12.4 is the latest Python version.",
+                "claim_type": "software_version",
+                "entities": ["Python", "Python 3.12.4"],
+                "temporal_sensitivity": "high",
+                "temporal_anchor": "latest",
+                "evidence_need": "fresh",
+            }
+        ],
+        "total_claims": 1,
+        "needs_verification": True,
+    }
+
+    evidence_payload = retrieve_fresh_evidence(question, claims_payload, "RECENT_ONLY", provider)
+    freshness = score_source_freshness(evidence_payload, "RECENT_ONLY")
+    verification = verify_temporal_claims(question, claims_payload, evidence_payload, freshness, "RECENT_ONLY")
+    outdatedness = detect_outdated_answer(question, answer, verification, claims_payload, "RECENT_ONLY", freshness)
+    correction = generate_correction(question, answer, verification, outdatedness, claims_payload, evidence_payload, freshness, "RECENT_ONLY")
+
+    evidence = evidence_payload["evidence_results"][0]["evidence_items"][0]
+    result = verification["verification_results"][0]
+    assert "Python 3.14.5" in evidence["content"]
+    assert evidence["evidence_value"] == "Python 3.14.5"
+    assert result["verification_status"] == "OUTDATED"
+    assert result["claim_value"] == "Python 3.12.4"
+    assert result["evidence_value"] == "Python 3.14.5"
+    assert outdatedness["outdatedness_status"] == "OUTDATED"
+    assert "Python 3.14.5" in correction["corrected_answer"]
+
+
+def test_tavily_prefers_python_downloads_over_devguide_for_latest_stable(monkeypatch) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Status of Python versions",
+                        "url": "https://devguide.python.org/versions/",
+                        "content": "Python 3.13 is in bugfix status and Python 3.12 is security-only.",
+                    },
+                    {
+                        "title": "Python Source Releases",
+                        "url": "https://www.python.org/downloads/source/",
+                        "content": "Stable Releases include Python 3.14.5 - May 10, 2026.",
+                    },
+                ]
+            }
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.post", lambda *args, **kwargs: FakeResponse())
+    provider = TavilySearchProvider(api_key="test-key")
+    claims_payload = {
+        "claims": [
+            {
+                "claim_id": "C1",
+                "claim_text": "Python 3.12.4 is the latest Python version.",
+                "claim_type": "software_version",
+                "entities": ["Python", "Python 3.12.4"],
+                "temporal_sensitivity": "high",
+                "temporal_anchor": "latest",
+                "evidence_need": "fresh",
+            }
+        ],
+        "total_claims": 1,
+        "needs_verification": True,
+    }
+
+    evidence_payload = retrieve_fresh_evidence("What is the latest Python version?", claims_payload, "RECENT_ONLY", provider)
+    evidence = evidence_payload["evidence_results"][0]["evidence_items"][0]
+
+    assert evidence["url"] == "https://www.python.org/downloads/source/"
+    assert evidence["evidence_value"] == "Python 3.14.5"
+
+
+def test_official_python_download_fetch_overrides_old_tavily_maintenance_pages(monkeypatch) -> None:
+    class FakePostResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "results": [
+                    {
+                        "title": "Python Release Python 3.12.0 | Python.org",
+                        "url": "https://www.python.org/downloads/release/python-3120",
+                        "content": "Python 3.12.0 has been superseded by Python 3.12.13.",
+                    }
+                ]
+            }
+
+    class FakeGetResponse:
+        text = "<html><body>Download the latest source release. Download Python 3.14.5.</body></html>"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    monkeypatch.setattr("temporalguard.search.providers.requests.post", lambda *args, **kwargs: FakePostResponse())
+    monkeypatch.setattr("temporalguard.skills.fresh_evidence_retriever.requests.get", lambda *args, **kwargs: FakeGetResponse())
+    provider = TavilySearchProvider(api_key="test-key")
+    claims_payload = {
+        "claims": [
+            {
+                "claim_id": "C1",
+                "claim_text": "Python 3.12.4 is the latest Python version.",
+                "claim_type": "software_version",
+                "entities": ["Python", "Python 3.12.4"],
+                "temporal_sensitivity": "high",
+                "temporal_anchor": "latest",
+                "evidence_need": "fresh",
+            }
+        ],
+        "total_claims": 1,
+        "needs_verification": True,
+    }
+
+    evidence_payload = retrieve_fresh_evidence("What is the latest Python version?", claims_payload, "RECENT_ONLY", provider)
+    evidence = evidence_payload["evidence_results"][0]["evidence_items"][0]
+
+    assert evidence["url"] == "https://www.python.org/downloads/"
+    assert evidence["evidence_value"] == "Python 3.14.5"
 
 
 def test_brave_provider_parses_mocked_response(monkeypatch) -> None:

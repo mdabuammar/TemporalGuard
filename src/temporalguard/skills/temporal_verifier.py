@@ -190,7 +190,8 @@ def _best_version_candidate_for_item(
     item: dict[str, Any],
     claim: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    candidates = _extract_version_candidates(_build_evidence_text(item))
+    value_candidates = _extract_version_candidates(str(item.get("evidence_value") or ""))
+    candidates = value_candidates or _extract_version_candidates(_build_evidence_text(item))
     if not candidates:
         return None
     if isinstance(claim, dict):
@@ -203,6 +204,13 @@ def _best_version_candidate_for_item(
             ]
             if not candidates:
                 return None
+            subject_matched = [
+                candidate
+                for candidate in candidates
+                if any(_version_subjects_exactly_match(claim_candidate, candidate) for claim_candidate in claim_candidates)
+            ]
+            if subject_matched:
+                candidates = subject_matched
     stable = [candidate for candidate in candidates if candidate.get("stable")]
     non_unstable = [candidate for candidate in candidates if not candidate.get("unstable")]
     pool = stable or non_unstable or candidates
@@ -359,7 +367,7 @@ def _same_major_subject_version(claim_value: str, evidence_value: str) -> bool:
 
 def _normalize_version_subject(subject: str) -> str:
     text = re.sub(r"[^A-Za-z0-9+#]+", "", subject or "").lower()
-    generic = {"v", "version", "release", "latest", "current", "stable", "download"}
+    generic = {"a", "an", "is", "the", "v", "version", "release", "latest", "current", "stable", "download"}
     return "" if text in generic else text
 
 
@@ -407,6 +415,12 @@ def _version_subjects_compatible(claim: dict[str, Any], claim_candidate: dict[st
     return not subject or subject in claim_text or subject in entities
 
 
+def _version_subjects_exactly_match(claim_candidate: dict[str, Any], evidence_candidate: dict[str, Any]) -> bool:
+    claim_subject = str(claim_candidate.get("subject") or "")
+    evidence_subject = str(evidence_candidate.get("subject") or "")
+    return bool(claim_subject and evidence_subject and claim_subject == evidence_subject)
+
+
 def _versions_equivalent(claim_numbers: tuple[int, ...], evidence_numbers: tuple[int, ...]) -> bool:
     shared_length = min(len(claim_numbers), len(evidence_numbers))
     if shared_length < 2:
@@ -435,6 +449,13 @@ def _compare_version_candidates(
         ]
         if not compatible_evidence:
             continue
+        subject_matched_evidence = [
+            candidate
+            for candidate in compatible_evidence
+            if _version_subjects_exactly_match(claim_candidate, candidate)
+        ]
+        if subject_matched_evidence:
+            compatible_evidence = subject_matched_evidence
         stable_evidence = [candidate for candidate in compatible_evidence if candidate.get("stable")]
         non_unstable_evidence = [candidate for candidate in compatible_evidence if not candidate.get("unstable")]
         candidate_pool = stable_evidence or non_unstable_evidence or compatible_evidence

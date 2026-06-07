@@ -29,6 +29,7 @@ class SearchResult:
     title: str
     url: str
     snippet: str = ""
+    content: str = ""
     publisher: str = "unknown"
     published_date: Optional[str] = None
     updated_date: Optional[str] = None
@@ -219,7 +220,7 @@ class TavilySearchProvider(_SafeProviderSkeleton):
                 "search_depth": "basic",
                 "max_results": limit,
                 "include_answer": False,
-                "include_raw_content": False,
+                "include_raw_content": True,
             },
             timeout=self.timeout_seconds,
         )
@@ -267,10 +268,13 @@ def _validate_source_type(value: Any) -> str | None:
 
 def _tavily_result_to_search_result(item: Dict[str, Any]) -> SearchResult:
     url = str(item.get("url") or "")
+    snippet = str(item.get("content") or item.get("snippet") or "")
+    content = str(item.get("raw_content") or item.get("content") or item.get("snippet") or "")
     return SearchResult(
         title=str(item.get("title") or ""),
         url=url,
-        snippet=str(item.get("content") or item.get("snippet") or ""),
+        snippet=snippet,
+        content=content,
         publisher=_publisher_from_url(url),
         published_date=_optional_date(item.get("published_date")),
         updated_date=_optional_date(item.get("updated_date") or item.get("published_date")),

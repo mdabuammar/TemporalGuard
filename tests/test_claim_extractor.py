@@ -116,6 +116,19 @@ def test_terse_compact_python_version_answer_extracts_latest_claim() -> None:
     assert result["needs_verification"] is True
 
 
+def test_latest_python_answer_with_is_before_version_uses_question_subject() -> None:
+    result = extract_claims(
+        "What is the latest Python version?",
+        "The latest Python version is 3.12.4.",
+        "RECENT_ONLY",
+    )
+    claim = result["claims"][0]
+
+    assert claim["claim_text"] == "The latest Python version is 3.12.4."
+    assert claim["entities"] == ["Python", "Python 3.12.4"]
+    assert claim["evidence_need"] == "fresh"
+
+
 def test_static_definition_makes_verification_optional() -> None:
     result = extract_claims(
         "What is binary search?",

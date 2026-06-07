@@ -280,7 +280,18 @@ def _fallback_version_claim(question: str, answer: str, temporal_category: str |
 
 def _version_subject(raw_subject: str | None, question: str) -> str | None:
     subject = str(raw_subject or "").strip(" -_")
-    if subject and subject.lower() not in {"v", "version", "release", "latest", "current", "stable"}:
+    if subject and subject.lower() not in {
+        "a",
+        "an",
+        "is",
+        "the",
+        "v",
+        "version",
+        "release",
+        "latest",
+        "current",
+        "stable",
+    }:
         return subject
     for term in TECH_TERMS:
         if re.search(rf"\b{re.escape(term)}\b", question, re.IGNORECASE):
@@ -348,7 +359,10 @@ def _extract_entities(claim: str, question: str) -> list[str]:
         if re.search(rf"\b{re.escape(term)}\b", source, re.IGNORECASE):
             entities.append(term)
     entities.extend(re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b", claim))
-    entities.extend(re.findall(r"\b[A-Za-z]+\s+\d+(?:\.\d+){1,3}\b", claim))
+    for version_match in re.finditer(r"\b(?P<subject>[A-Za-z]+)\s+(?P<version>\d+(?:\.\d+){1,3})\b", claim):
+        subject = _version_subject(version_match.group("subject"), question)
+        if subject:
+            entities.append(f"{subject} {version_match.group('version')}")
     if re.search(r"\bCEO\b", claim):
         entities.append("CEO")
     if re.search(r"\bpresident\b", claim, re.IGNORECASE):

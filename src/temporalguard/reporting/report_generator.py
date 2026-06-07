@@ -56,6 +56,7 @@ def generate_report(
             "missing_sections": missing_sections,
             "warnings": debug_warnings,
             "raw_statuses": _get_raw_statuses(data),
+            "evidence_inspection": _build_evidence_inspection(data),
         },
     }
 
@@ -166,6 +167,34 @@ def _build_evidence_report(pipeline_output: dict[str, Any], max_items: int) -> l
                 }
             )
     return reports
+
+
+def _build_evidence_inspection(pipeline_output: dict[str, Any]) -> list[dict[str, Any]]:
+    freshness_scores = _freshness_scores_by_key(pipeline_output)
+    inspections: list[dict[str, Any]] = []
+    for evidence_result in _evidence_results(pipeline_output):
+        claim_id = str(evidence_result.get("claim_id") or "")
+        items = evidence_result.get("evidence_items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            evidence_id = str(item.get("evidence_id") or "")
+            score = freshness_scores.get((claim_id, evidence_id), {})
+            inspections.append(
+                {
+                    "claim_id": claim_id,
+                    "evidence_id": evidence_id,
+                    "title": str(item.get("title") or ""),
+                    "url": str(item.get("url") or ""),
+                    "snippet": _shorten(str(item.get("snippet") or item.get("content") or item.get("evidence_summary") or ""), 320),
+                    "evidence_value": item.get("evidence_value"),
+                    "freshness_score": _number_or_default(score.get("freshness_score"), 0.0),
+                    "combined_score": _number_or_default(score.get("combined_score"), 0.0),
+                }
+            )
+    return inspections
 
 
 def _build_correction_report(pipeline_output: dict[str, Any]) -> dict[str, Any]:

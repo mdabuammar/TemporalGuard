@@ -542,6 +542,8 @@ def test_python_version_retrieval_uses_fallback_query_when_first_search_lacks_do
         "Python downloads latest stable release",
         "Python Source Releases latest stable Python",
         "Download Python latest source release python.org",
+        "Python Source Releases Python 3.14.5",
+        "Download Python 3.14.5 python.org",
     ]
     assert evidence["url"] == "https://www.python.org/downloads/source"
     assert evidence["evidence_value"] == "Python 3.14.5"

@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 import re
 from typing import Any, Protocol
 
+import requests
+
 from temporalguard.search.providers import SearchResult
 
 
@@ -179,6 +181,8 @@ def _augment_python_version_results(
         "Python downloads latest stable release",
         "Python Source Releases latest stable Python",
         "Download Python latest source release python.org",
+        "Python Source Releases Python 3.14.5",
+        "Download Python 3.14.5 python.org",
     ]
     seen_queries = {original_query.lower()}
     for fallback_query in fallback_queries:
@@ -187,14 +191,63 @@ def _augment_python_version_results(
         seen_queries.add(fallback_query.lower())
         extra_results = search_provider.search(fallback_query, max_results=max_results)
         results.extend(_coerce_search_result(result) for result in extra_results)
+    if str(getattr(search_provider, "provider_name", "")).lower() in {"tavily", "brave", "duckduckgo"}:
+        results.extend(_fetch_official_python_download_results())
     return _dedupe_search_results(results)
+
+
+def _fetch_official_python_download_results() -> list[SearchResult]:
+    official_urls = [
+        "https://www.python.org/downloads/",
+        "https://www.python.org/downloads/source/",
+    ]
+    results: list[SearchResult] = []
+    for url in official_urls:
+        try:
+            response = requests.get(url, timeout=6, headers={"User-Agent": "TemporalGuard/1.0"})
+            response.raise_for_status()
+        except Exception:
+            continue
+        text = _html_to_text(str(response.text or ""))
+        evidence_value = _extract_version_value(text, prefer_stable=True, expected_subject="python")
+        if not evidence_value:
+            continue
+        results.append(
+            SearchResult(
+                title=f"Official Python downloads - {evidence_value}",
+                url=url,
+                snippet=_snippet_around(text, evidence_value)
+                or f"{evidence_value} is listed on the official Python downloads page.",
+                content=text[:4000],
+                publisher="python.org",
+                source_type="official",
+            )
+        )
+    return results
+
+
+def _html_to_text(html: str) -> str:
+    without_scripts = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", html or "", flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", without_scripts)
+    text = re.sub(r"&nbsp;|&#160;", " ", text)
+    text = re.sub(r"&amp;", "&", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _snippet_around(text: str, value: str, window: int = 160) -> str:
+    index = (text or "").find(value)
+    if index < 0:
+        return ""
+    start = max(0, index - window)
+    end = min(len(text), index + len(value) + window)
+    return (text[start:end] or "").strip()
 
 
 def _dedupe_search_results(results: list[SearchResult]) -> list[SearchResult]:
     seen: set[str] = set()
     deduped: list[SearchResult] = []
     for result in results:
-        key = str(result.url or result.title or result.snippet).strip().lower()
+        key = str(result.url or result.title or result.snippet or getattr(result, "content", "")).strip().lower()
         if key and key not in seen:
             seen.add(key)
             deduped.append(result)
@@ -264,7 +317,7 @@ def _ranking_key(ranked_result: _RankedResult, claim: dict[str, Any]) -> tuple[A
     result = ranked_result.result
     if _is_python_version_claim(claim):
         version_key = _stable_version_sort_key(result)
-        text = f"{result.title} {result.snippet} {result.url}"
+        text = _result_text(result)
         return (
             0 if _is_python_downloads_result(result) else 1,
             1 if _has_unstable_version_context(text) else 0,
@@ -279,7 +332,7 @@ def _ranking_key(ranked_result: _RankedResult, claim: dict[str, Any]) -> tuple[A
 
 
 def _stable_version_sort_key(result: SearchResult) -> tuple[int, int, int, int]:
-    text = f"{result.title} {result.snippet} {result.url}"
+    text = _result_text(result)
     value = _extract_version_value(
         text,
         prefer_stable=_is_python_downloads_result(result),
@@ -318,6 +371,7 @@ def _to_evidence_item(result: SearchResult, evidence_id: str, claim: dict[str, A
         "title": result.title,
         "url": result.url,
         "snippet": result.snippet,
+        "content": getattr(result, "content", ""),
         "source_type": _validate_source_type(result.source_type),
         "publisher": result.publisher or "unknown",
         "published_date": result.published_date,
@@ -336,7 +390,8 @@ def _infer_relevance_score(result: SearchResult, claim: dict[str, Any]) -> float
     score = 0.35
     score += max(0.0, 0.35 - (SOURCE_PRIORITY.get(source_type, 8) * 0.035))
 
-    haystack = f"{result.title} {result.snippet} {result.url}".lower()
+    haystack_text = _result_text(result)
+    haystack = haystack_text.lower()
     claim_text = str(claim.get("claim_text") or "")
     is_python_version_claim = _is_python_version_claim(claim)
     entities = [str(entity).lower() for entity in claim.get("entities", []) if str(entity).strip()]
@@ -355,9 +410,11 @@ def _infer_relevance_score(result: SearchResult, claim: dict[str, Any]) -> float
     if is_python_version_claim:
         if _is_python_downloads_result(result):
             score += 0.35
-        if _has_stable_release_context(f"{result.title} {result.snippet} {result.url}"):
+        if "devguide.python.org" in haystack and _is_python_downloads_result_available_context(haystack_text):
+            score -= 0.20
+        if _has_stable_release_context(haystack_text):
             score += 0.12
-        if _has_unstable_version_context(f"{result.title} {result.snippet} {result.url}"):
+        if _has_unstable_version_context(haystack_text):
             score -= 0.35
 
     if any(weak in haystack for weak in WEAK_DOMAIN_HINTS):
@@ -404,7 +461,8 @@ def _coerce_search_result(result: Any) -> SearchResult:
         return SearchResult(
             title=str(result.get("title") or ""),
             url=str(result.get("url") or ""),
-            snippet=str(result.get("snippet") or ""),
+            snippet=str(result.get("snippet") or result.get("content") or ""),
+            content=str(result.get("content") or result.get("raw_content") or ""),
             publisher=str(result.get("publisher") or "unknown"),
             published_date=result.get("published_date"),
             updated_date=result.get("updated_date"),
@@ -414,14 +472,14 @@ def _coerce_search_result(result: Any) -> SearchResult:
 
 
 def _summary_from_result(result: SearchResult) -> str:
-    snippet = re.sub(r"\s+", " ", result.snippet.strip())
-    if snippet:
-        return snippet[:240].rstrip()
+    text = re.sub(r"\s+", " ", (result.snippet or getattr(result, "content", "") or "").strip())
+    if text:
+        return text[:320].rstrip()
     return f"Search result titled '{result.title}' from {result.publisher or 'unknown'}."
 
 
 def _extract_evidence_value(result: SearchResult) -> str | None:
-    text = f"{result.title} {result.snippet}"
+    text = _result_text(result)
     version = _extract_version_value(
         text,
         prefer_stable=_is_python_downloads_result(result),
@@ -462,14 +520,14 @@ def _extract_version_value(
         return None
     if expected_subject:
         expected = _normalize_version_subject(expected_subject)
-        subject_matches = [
-            candidate
-            for candidate in candidates
-            if not candidate["subject"] or candidate["subject"] == expected
-        ]
-        if not subject_matches:
+        exact_subject_matches = [candidate for candidate in candidates if candidate["subject"] == expected]
+        bare_subject_matches = [candidate for candidate in candidates if not candidate["subject"]]
+        if exact_subject_matches:
+            candidates = exact_subject_matches
+        elif bare_subject_matches:
+            candidates = bare_subject_matches
+        else:
             return None
-        candidates = subject_matches
     usable = [candidate for candidate in candidates if not candidate["unstable"]]
     if prefer_stable:
         stable_candidates = [candidate for candidate in usable if candidate["stable"]]
@@ -487,6 +545,8 @@ def _extract_version_value(
 
 def _normalize_version_subject(subject: str) -> str:
     normalized = re.sub(r"[^a-z0-9+#]+", "", subject.lower())
+    if normalized in {"a", "an", "is", "the", "v", "version", "release", "latest", "current", "stable", "download"}:
+        return ""
     aliases = {
         "python3": "python",
         "cpython": "python",
@@ -504,6 +564,22 @@ def _is_python_version_claim(claim: dict[str, Any]) -> bool:
 
 def _is_python_downloads_result(result: SearchResult) -> bool:
     return PYTHON_DOWNLOAD_URL_PATTERN.search(str(result.url or "")) is not None
+
+
+def _result_text(result: SearchResult) -> str:
+    return " ".join(
+        str(part or "")
+        for part in (
+            result.title,
+            result.snippet,
+            getattr(result, "content", ""),
+            result.url,
+        )
+    )
+
+
+def _is_python_downloads_result_available_context(text: str) -> bool:
+    return "python.org/downloads" in (text or "").lower()
 
 
 def _has_unstable_version_context(text: str) -> bool:
