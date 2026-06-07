@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,6 +23,16 @@ from temporalguard.reporting.report_generator import generate_report
 from temporalguard.search.providers import create_search_provider
 from temporalguard.utils.errors import ProviderUnavailableError, make_error, safe_call
 
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def load_backend_environment(dotenv_path: Path | None = None) -> bool:
+    """Load backend environment defaults without overriding process variables."""
+    return load_dotenv(dotenv_path or PROJECT_ROOT / ".env", override=False)
+
+
+load_backend_environment()
 
 app = FastAPI(title="TemporalGuard API", version="0.1.0")
 

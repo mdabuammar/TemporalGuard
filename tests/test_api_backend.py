@@ -1,3 +1,5 @@
+import os
+
 from fastapi.testclient import TestClient
 
 from temporalguard.api import main
@@ -45,6 +47,35 @@ def test_cors_headers_for_local_frontend() -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_backend_environment_loads_dotenv_without_overriding_process_env(tmp_path, monkeypatch) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENROUTER_API_KEY=from_dotenv",
+                "TAVILY_API_KEY=tavily_from_dotenv",
+                "DEFAULT_LLM_PROVIDER=openrouter",
+                "DEFAULT_MODEL_NAME=openrouter/free",
+                "DEFAULT_SEARCH_PROVIDER=tavily",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    monkeypatch.delenv("DEFAULT_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("DEFAULT_MODEL_NAME", raising=False)
+    monkeypatch.delenv("DEFAULT_SEARCH_PROVIDER", raising=False)
+    monkeypatch.setenv("DEFAULT_MODEL_NAME", "process-model")
+
+    assert main.load_backend_environment(env_file) is True
+    assert os.getenv("OPENROUTER_API_KEY") == "from_dotenv"
+    assert os.getenv("TAVILY_API_KEY") == "tavily_from_dotenv"
+    assert os.getenv("DEFAULT_LLM_PROVIDER") == "openrouter"
+    assert os.getenv("DEFAULT_MODEL_NAME") == "process-model"
+    assert os.getenv("DEFAULT_SEARCH_PROVIDER") == "tavily"
 
 
 def test_analyze_endpoint_uses_orchestrator(monkeypatch) -> None:
