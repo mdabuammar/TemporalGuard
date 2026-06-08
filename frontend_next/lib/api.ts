@@ -67,6 +67,10 @@ export function getEvidence(output: TemporalGuardOutput | null) {
   const reportItems = output?.report?.evidence_report;
   if (Array.isArray(reportItems) && reportItems.length > 0) return reportItems;
   const evidence = output?.evidence;
+  const nestedItems = evidence?.evidence_results?.flatMap((result) =>
+    Array.isArray(result.evidence_items) ? result.evidence_items : []
+  );
+  if (Array.isArray(nestedItems) && nestedItems.length > 0) return nestedItems;
   if (Array.isArray(evidence?.evidence_items)) return evidence.evidence_items;
   if (Array.isArray(evidence?.sources)) return evidence.sources;
   return [];

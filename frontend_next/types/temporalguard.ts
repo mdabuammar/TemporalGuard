@@ -26,15 +26,27 @@ export interface DashboardState {
 }
 
 export interface EvidenceItem {
+  evidence_id?: string;
   title?: string;
   publisher?: string;
   source?: string;
+  source_type?: string;
   url?: string;
   freshness_label?: string;
   published_date?: string;
   updated_date?: string;
+  evidence_summary?: string;
+  evidence_value?: string;
+  relevance_score?: number | string;
+  combined_score?: number | string;
   score?: number | string;
   snippet?: string;
+  content?: string;
+}
+
+export interface EvidenceResult {
+  claim_id?: string;
+  evidence_items?: EvidenceItem[];
 }
 
 export interface ClaimItem {
@@ -76,6 +88,7 @@ export interface TemporalGuardOutput {
     total_claims?: number;
   };
   evidence?: {
+    evidence_results?: EvidenceResult[];
     evidence_items?: EvidenceItem[];
     sources?: EvidenceItem[];
   };

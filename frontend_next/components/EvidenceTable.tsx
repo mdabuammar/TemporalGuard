@@ -19,9 +19,19 @@ export function EvidenceTable({ items }: { items: EvidenceItem[] }) {
               {item.freshness_label || item.published_date || item.updated_date || "Evidence"}
             </span>
           </div>
-          {item.snippet ? <p className="mt-3 text-sm leading-6 text-warm-muted">{item.snippet}</p> : null}
+          {item.evidence_value ? (
+            <p className="mt-3 w-fit rounded-full bg-sage-100 px-3 py-1 text-xs font-semibold text-sage-800">
+              Evidence value: {item.evidence_value}
+            </p>
+          ) : null}
+          {item.snippet || item.evidence_summary || item.content ? (
+            <p className="mt-3 text-sm leading-6 text-warm-muted">{item.snippet || item.evidence_summary || item.content}</p>
+          ) : null}
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            {item.score !== undefined ? <span className="text-warm-muted">Score: {String(item.score)}</span> : null}
+            {item.source_type ? <span className="text-warm-muted">Type: {item.source_type}</span> : null}
+            {item.score !== undefined || item.relevance_score !== undefined || item.combined_score !== undefined ? (
+              <span className="text-warm-muted">Score: {String(item.score ?? item.relevance_score ?? item.combined_score)}</span>
+            ) : null}
             {item.url ? (
               <a className="inline-flex items-center gap-1 font-semibold text-sage-700 hover:text-sage-700/80" href={item.url} target="_blank" rel="noreferrer">
                 Open source
