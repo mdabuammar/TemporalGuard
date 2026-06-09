@@ -1056,6 +1056,151 @@ def test_pandas_append_removed_status_is_contradicted() -> None:
     assert verification["evidence_value"] == "DataFrame.append was removed in pandas 2.0; use pandas.concat"
 
 
+def test_unseen_winner_question_extracts_champion_not_event_name() -> None:
+    result = verify_temporal_claims(
+        "Who won Super Bowl LVII?",
+        {"claims": [{"claim_id": "C1", "claim_text": "Philadelphia Eagles won Super Bowl LVII.", "claim_type": "event_result"}]},
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "evidence_summary": "Kansas City Chiefs defeated Philadelphia Eagles to win Super Bowl LVII.",
+                            "evidence_value": "Kansas City Chiefs",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "HISTORICAL",
+    )
+
+    verification = result["verification_results"][0]
+    assert verification["verification_status"] == "CONTRADICTED"
+    assert verification["claim_value"] == "Philadelphia Eagles"
+    assert verification["evidence_value"] == "Kansas City Chiefs"
+
+
+def test_unseen_when_question_extracts_full_date() -> None:
+    result = verify_temporal_claims(
+        "When was the first iPhone announced?",
+        {"claims": [{"claim_id": "C1", "claim_text": "The first iPhone was announced in 2008.", "claim_type": "historical_fact"}]},
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "evidence_summary": "Apple announced the first iPhone on January 9, 2007.",
+                            "evidence_value": "January 9, 2007",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "HISTORICAL",
+    )
+
+    verification = result["verification_results"][0]
+    assert verification["verification_status"] == "CONTRADICTED"
+    assert verification["evidence_value"] == "January 9, 2007"
+
+
+def test_unseen_software_lifecycle_extracts_standard_support_end() -> None:
+    result = verify_temporal_claims(
+        "Is Ubuntu 18.04 still in standard support?",
+        {"claims": [{"claim_id": "C1", "claim_text": "Ubuntu 18.04 is still in standard support.", "claim_type": "software_version"}]},
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "evidence_summary": "Ubuntu 18.04 standard support ended on May 31, 2023.",
+                            "evidence_value": "end-of-life on May 31, 2023",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "RECENT_ONLY",
+    )
+
+    verification = result["verification_results"][0]
+    assert verification["verification_status"] in {"OUTDATED", "CONTRADICTED"}
+    assert verification["evidence_value"] == "end-of-life on May 31, 2023"
+
+
+def test_unseen_latest_software_version_uses_newer_stable_value() -> None:
+    result = verify_temporal_claims(
+        "What is the latest React version?",
+        {"claims": [{"claim_id": "C1", "claim_text": "React 18.2.0 is the latest React version.", "claim_type": "software_version"}]},
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "evidence_summary": "React 19.1.0 is the latest stable release.",
+                            "evidence_value": "React 19.1.0",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "VERSION_DEPENDENT",
+    )
+
+    verification = result["verification_results"][0]
+    assert verification["verification_status"] == "OUTDATED"
+    assert verification["evidence_value"] == "React 19.1.0"
+
+
+def test_unseen_static_educational_fact_remains_supported() -> None:
+    result = verify_temporal_claims(
+        "Is RAM volatile memory?",
+        {"claims": [{"claim_id": "C1", "claim_text": "RAM is volatile memory.", "claim_type": "definition", "entities": ["RAM"]}]},
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "evidence_summary": "RAM is volatile memory because it loses stored data when power is removed.",
+                            "source_type": "academic",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "STATIC",
+    )
+
+    verification = result["verification_results"][0]
+    assert verification["verification_status"] == "SUPPORTED"
+    assert verification["requires_correction"] is False
+
+
 def test_weak_freshness_blocks_supported_for_recent_claim() -> None:
     result = verify_temporal_claims(
         "Is the system current?",

@@ -195,19 +195,21 @@ def _direct_answer_template(question: str, evidence_value: str) -> str | None:
     if re.search(r"\bwho won\b", q):
         event = _extract_event_phrase(question)
         return f"{value} won {event}." if event else f"{value} won."
-    if "covid" in q and ("public health emergency" in q or "pheic" in q):
-        return f"WHO ended the COVID-19 public health emergency of international concern on {value}."
     if re.search(r"\bwhen\b|\bwhat year\b", q):
         subject = _date_subject_phrase(question)
         return f"{subject} {value}." if subject else f"The date was {value}."
-    if "node.js" in q or "nodejs" in q:
+    if _is_api_status_question(q, value):
+        return _format_api_status_answer(value)
+    if _is_lifecycle_question(q, value):
+        subject = _support_subject_phrase(question) or "This software release"
         if "end-of-life" in value.lower() or "no longer" in value.lower():
-            return f"Node.js 18 is no longer actively supported. It reached {value}."
-        return f"Node.js 18 support status: {value}."
-    if "dataframe.append" in q or "append" in q and "pandas" in q:
-        return "DataFrame.append was removed in pandas 2.0. Use pandas.concat instead."
-    if "latest" in q and "python" in q:
-        return f"The latest stable Python version is {value}."
+            return f"{subject} is no longer actively supported. It reached {value}."
+        return f"{subject} support status: {value}."
+    if "latest" in q or "current" in q:
+        subject = _latest_subject_phrase(question)
+        if subject:
+            return f"The latest stable {subject} version is {value}."
+        return f"The latest supported version is {value}."
     return None
 
 
@@ -225,13 +227,89 @@ def _date_subject_phrase(question: str) -> str | None:
     q = (question or "").strip().rstrip("?")
     match = re.search(r"when did\s+(?P<subject>.+)$", q, re.IGNORECASE)
     if match:
-        subject = match.group("subject").strip()
+        subject = _past_tense_question_subject(match.group("subject").strip())
         return f"{subject[0].upper()}{subject[1:]} on"
     match = re.search(r"what year did\s+(?P<subject>.+)$", q, re.IGNORECASE)
     if match:
         subject = match.group("subject").strip()
         return f"{subject[0].upper()}{subject[1:]} in"
     return None
+
+
+def _past_tense_question_subject(subject: str) -> str:
+    words = subject.split()
+    if len(words) < 2:
+        return subject
+    verb_index = 1
+    verb = words[verb_index].lower()
+    irregular = {"win": "won", "end": "ended", "announce": "announced", "land": "landed", "release": "released"}
+    if verb in irregular:
+        words[verb_index] = irregular[verb]
+    elif verb.endswith("e"):
+        words[verb_index] = f"{verb}d"
+    else:
+        words[verb_index] = f"{verb}ed"
+    return " ".join(words)
+
+
+def _is_lifecycle_question(question_lower: str, evidence_value: str) -> bool:
+    return bool(
+        re.search(r"\b(still|active(?:ly)? supported|support|end[- ]?of[- ]?life|eol|lts)\b", question_lower)
+        or re.search(r"\b(end[- ]?of[- ]?life|maintenance lts|active lts|security maintenance)\b", evidence_value, re.I)
+    )
+
+
+def _support_subject_phrase(question: str) -> str | None:
+    match = re.search(
+        r"\b(?:is|are)\s+(?P<subject>.+?)\s+(?:still\s+)?(?:actively\s+)?supported\b",
+        question or "",
+        re.IGNORECASE,
+    )
+    if not match:
+        match = re.search(
+            r"\b(?:is|are)\s+(?P<subject>.+?)\s+(?:still\s+)?(?:in\s+)?(?:standard|active|maintenance|security)\s+support\b",
+            question or "",
+            re.IGNORECASE,
+        )
+    if not match:
+        match = re.search(r"\b(?P<subject>[A-Za-z][A-Za-z0-9.+# -]{1,60})\s+(?:support|lts|eol)\b", question or "", re.I)
+    if not match:
+        return None
+    return _clean_sentence_subject(match.group("subject"))
+
+
+def _is_api_status_question(question_lower: str, evidence_value: str) -> bool:
+    return bool(
+        re.search(r"\b(api|method|function|attribute|append|support|removed|deprecated)\b", question_lower)
+        and re.search(r"\b(removed|deprecated|no longer|use .+ instead)\b", evidence_value, re.I)
+    )
+
+
+def _format_api_status_answer(evidence_value: str) -> str:
+    text = evidence_value.strip().rstrip(".")
+    text = re.sub(r";\s*", ". ", text)
+    text = re.sub(r"\buse\b", "Use", text, flags=re.IGNORECASE)
+    if re.search(r"\bUse\b", text) and "instead" not in text.lower():
+        use_index = text.rfind("Use ")
+        if use_index >= 0:
+            text = f"{text[:use_index]}{text[use_index:]} instead"
+    return f"{text}."
+
+
+def _latest_subject_phrase(question: str) -> str | None:
+    match = re.search(r"\blatest(?:\s+stable)?\s+(?P<subject>[A-Za-z][A-Za-z0-9.+# -]{1,40})\s+version\b", question or "", re.I)
+    if match:
+        return _clean_sentence_subject(match.group("subject"))
+    match = re.search(r"\bcurrent\s+(?P<subject>[A-Za-z][A-Za-z0-9.+# -]{1,40})\s+release\b", question or "", re.I)
+    if match:
+        return _clean_sentence_subject(match.group("subject"))
+    return None
+
+
+def _clean_sentence_subject(value: str) -> str:
+    text = re.sub(r"\s+", " ", (value or "").strip(" .,:;?"))
+    text = re.sub(r"^(the|a|an)\s+", "", text, flags=re.I)
+    return text
 
 
 def _is_bad_final_value(value: str) -> bool:

@@ -447,3 +447,122 @@ def test_pandas_append_correction_is_direct() -> None:
     )
 
     assert result["corrected_answer"] == "DataFrame.append was removed in pandas 2.0. Use pandas.concat instead."
+
+
+def test_unseen_winner_correction_uses_event_from_question() -> None:
+    result = generate_correction(
+        "Who won Super Bowl LVII?",
+        "Philadelphia Eagles won Super Bowl LVII.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Philadelphia Eagles won Super Bowl LVII.",
+                    "verification_status": "CONTRADICTED",
+                    "claim_value": "Philadelphia Eagles",
+                    "evidence_value": "Kansas City Chiefs",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "CONTRADICTED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="HISTORICAL",
+    )
+
+    assert result["corrected_answer"] == "Kansas City Chiefs won the Super Bowl LVII."
+
+
+def test_unseen_date_correction_is_grammatical() -> None:
+    result = generate_correction(
+        "When was the first iPhone announced?",
+        "It was announced in 2008.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "It was announced in 2008.",
+                    "verification_status": "CONTRADICTED",
+                    "claim_value": "2008",
+                    "evidence_value": "January 9, 2007",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "CONTRADICTED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="HISTORICAL",
+    )
+
+    assert result["corrected_answer"] == "The date was January 9, 2007."
+
+
+def test_unseen_lifecycle_correction_uses_question_subject() -> None:
+    result = generate_correction(
+        "Is Ubuntu 18.04 still in standard support?",
+        "Ubuntu 18.04 is still in standard support.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Ubuntu 18.04 is still in standard support.",
+                    "verification_status": "OUTDATED",
+                    "claim_value": "active LTS",
+                    "evidence_value": "end-of-life on May 31, 2023",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "OUTDATED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="RECENT_ONLY",
+    )
+
+    assert result["corrected_answer"] == "Ubuntu 18.04 is no longer actively supported. It reached end-of-life on May 31, 2023."
+
+
+def test_unseen_latest_version_correction_uses_subject() -> None:
+    result = generate_correction(
+        "What is the latest React version?",
+        "React 18.2.0 is the latest version.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "React 18.2.0 is the latest version.",
+                    "verification_status": "OUTDATED",
+                    "claim_value": "React 18.2.0",
+                    "evidence_value": "React 19.1.0",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "OUTDATED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="VERSION_DEPENDENT",
+    )
+
+    assert result["corrected_answer"] == "The latest stable React version is React 19.1.0."
+
+
+def test_static_correction_keeps_original_answer_for_unseen_definition() -> None:
+    answer = "RAM is volatile memory."
+    result = generate_correction(
+        "Is RAM volatile memory?",
+        answer,
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": answer,
+                    "verification_status": "SUPPORTED",
+                    "risk_level": "low",
+                    "requires_correction": False,
+                }
+            ]
+        },
+        {"outdatedness_status": "NOT_OUTDATED", "requires_correction": False, "answer_temporal_risk": "low"},
+        temporal_category="STATIC",
+    )
+
+    assert result["corrected_answer"] == answer

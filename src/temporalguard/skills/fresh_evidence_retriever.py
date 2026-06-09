@@ -547,7 +547,7 @@ def _infer_question_answer_type(claim: dict[str, Any] | None) -> str:
         return "date_full"
     if re.search(r"\b(what year|ended|announced|landed|released on)\b", text):
         return "date"
-    if re.search(r"\b(dataframe\.append|append|removed|deprecated|supports?)\b", text):
+    if re.search(r"\b(dataframe\.append|append|removed|deprecated|api|method|function|attribute)\b", text):
         return "api_status"
     if re.search(r"\b(still|active(?:ly)? supported|support|end[- ]?of[- ]?life|eol|lts)\b", text) and re.search(
         r"\b(node\.?js|python|ubuntu|software|version|lts)\b", text
@@ -617,7 +617,7 @@ def _extract_lifecycle_value(text: str) -> str | None:
         return f"end-of-life on {date}" if date else "end-of-life"
     if re.search(r"\bmaintenance lts|maintenance support\b", lower):
         return f"maintenance LTS until {date}" if date else "maintenance LTS"
-    if re.search(r"\bactive lts|actively supported|active support\b", lower):
+    if re.search(r"\bactive lts|actively supported|active support|standard support\b", lower):
         return f"active LTS until {date}" if date else "active LTS"
     if re.search(r"\bsecurity maintenance|security updates?\b", lower):
         return f"security maintenance until {date}" if date else "security maintenance"

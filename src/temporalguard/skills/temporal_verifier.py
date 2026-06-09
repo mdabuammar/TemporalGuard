@@ -247,7 +247,7 @@ def _best_version_candidate_for_item(
 
 def _build_evidence_text(evidence_item: dict[str, Any]) -> str:
     parts = [
-        str(evidence_item.get("evidence_value") or ""),
+        f"{evidence_item.get('evidence_value')}." if evidence_item.get("evidence_value") else "",
         str(evidence_item.get("title") or ""),
         str(evidence_item.get("publisher") or ""),
         str(evidence_item.get("evidence_summary") or ""),
@@ -573,7 +573,7 @@ def _compare_claim_and_evidence_values(
         "detected_conflict": None,
     }
 
-    typed_comparison = _compare_typed_answer_value(answer_type, claim_text, comparison_text, claim, temporal_category)
+    typed_comparison = _compare_typed_answer_value(answer_type, claim_text, evidence_text, claim, temporal_category)
     if typed_comparison is not None:
         comparison.update(typed_comparison)
         return comparison
@@ -828,7 +828,7 @@ def _infer_question_answer_type(question: str, claim: dict[str, Any]) -> str:
         return "date_full"
     if re.search(r"\b(what year|ended|announced|landed|released on)\b", text):
         return "date"
-    if re.search(r"\b(dataframe\.append|append|removed|deprecated|supports?)\b", text):
+    if re.search(r"\b(dataframe\.append|append|removed|deprecated|api|method|function|attribute)\b", text):
         return "api_status"
     if re.search(r"\b(still|active(?:ly)? supported|support|end[- ]?of[- ]?life|eol|lts)\b", text) and re.search(
         r"\b(node\.?js|python|ubuntu|software|version|lts)\b", text
@@ -906,12 +906,20 @@ def _missing_typed_evidence(claim_value: str) -> dict[str, Any]:
 def _leading_evidence_value(evidence_text: str, answer_type: str) -> str | None:
     text = re.sub(r"\s+", " ", evidence_text or "").strip()
     if answer_type == "winner":
+        match = re.match(r"(?P<value>[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,4})\.", text)
+        if match:
+            value = _clean_answer_value(match.group("value"))
+            if value and not _is_bad_answer_value(value):
+                return value
         match = re.match(r"(?P<value>[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})(?=\s+(?:\d{4}|[A-Z]))", text)
         if match:
             value = _clean_answer_value(match.group("value"))
             if value and not _is_bad_answer_value(value):
                 return value
     if answer_type == "date_full":
+        leading_date = _extract_dates(text[:40])
+        if leading_date and re.search(r"\b(ended|announced|declared|no longer|terminated|concluded|ceased)\b", text, re.IGNORECASE):
+            return leading_date[0]
         for date in _extract_dates(text):
             index = text.find(date)
             local = text[max(0, index - 90) : min(len(text), index + len(date) + 140)] if index >= 0 else ""
@@ -927,6 +935,7 @@ def _leading_evidence_value(evidence_text: str, answer_type: str) -> str | None:
 def _winner_entity(text: str) -> str | None:
     patterns = [
         r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+won\s+the\b",
+        r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+won\s+(?=[A-Z0-9])",
         r"\bthe\s+winner\s+was\s+([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\b",
         r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+(?:beat|defeated)\b",
     ]
@@ -946,7 +955,7 @@ def _extract_lifecycle_value(text: str) -> str | None:
         return f"end-of-life on {date}" if date else "end-of-life"
     if re.search(r"\bmaintenance lts|maintenance support\b", lower):
         return f"maintenance LTS until {date}" if date else "maintenance LTS"
-    if re.search(r"\bactive lts|actively supported|active support\b", lower):
+    if re.search(r"\bactive lts|actively supported|active support|standard support\b", lower):
         return f"active LTS until {date}" if date else "active LTS"
     if re.search(r"\bsecurity maintenance|security updates?\b", lower):
         return f"security maintenance until {date}" if date else "security maintenance"
