@@ -1,5 +1,5 @@
 export type RunMode = "Demo Mode" | "Local Pipeline" | "Backend + Model API";
-export type LlmProvider = "mock" | "openrouter" | "openai" | "gemini" | "anthropic";
+export type LlmProvider = "mock" | "openrouter" | "openai" | "gemini" | "anthropic" | "qwen";
 export type SearchProvider = "none" | "mock" | "tavily" | "brave";
 export type ReportType = "dashboard" | "technical" | "debug";
 

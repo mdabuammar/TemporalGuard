@@ -206,6 +206,56 @@ class OpenRouterProvider:
         )
 
 
+class QwenProvider:
+    provider_name = "qwen"
+    default_model = "qwen3.7-plus"
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+        timeout_seconds: int = 30,
+    ) -> None:
+        self.api_key = api_key or os.getenv("QWEN_API_KEY")
+        self.base_url = (
+            base_url
+            or os.getenv("QWEN_BASE_URL")
+            or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        ).rstrip("/")
+        self.model_name = model_name or os.getenv("DEFAULT_QWEN_MODEL") or self.default_model
+        self.timeout_seconds = max(1, int(timeout_seconds or 30))
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.api_key)
+
+    def generate(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        if not self.configured:
+            raise ProviderUnavailableError("QWEN_API_KEY is not configured.")
+        max_tokens = int(kwargs.get("max_tokens") or 512)
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            json={
+                "model": self.model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": max_tokens,
+            },
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        answer = str(payload.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+        return _provider_response(
+            answer=answer,
+            model_name=str(payload.get("model") or self.model_name),
+            provider=self.provider_name,
+            usage=_usage_from_openai(payload.get("usage")),
+        )
+
+
 def create_llm_provider(
     provider_name: str | None = None,
     model_name: str | None = None,
@@ -222,6 +272,8 @@ def create_llm_provider(
         provider = AnthropicProvider(model_name=model_name)
     elif name == "openrouter":
         provider = OpenRouterProvider(model_name=model_name)
+    elif name == "qwen":
+        provider = QwenProvider(model_name=model_name)
     else:
         raise ProviderUnavailableError(f"Unsupported LLM provider: {provider_name}")
     if require_configured and not provider.configured:
@@ -230,6 +282,7 @@ def create_llm_provider(
             "gemini": "GEMINI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
+            "qwen": "QWEN_API_KEY",
         }[name]
         raise ProviderUnavailableError(f"{env_name} is not configured.")
     return provider
@@ -250,6 +303,10 @@ def normalize_provider_name(provider_name: str | None) -> str:
         "claude/anthropic": "anthropic",
         "openrouter": "openrouter",
         "openrouter/free": "openrouter",
+        "qwen": "qwen",
+        "alibaba": "qwen",
+        "alibaba cloud": "qwen",
+        "dashscope": "qwen",
     }
     return aliases.get(text, text)
 

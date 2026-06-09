@@ -195,6 +195,71 @@ def test_analyze_endpoint_accepts_openrouter_provider(monkeypatch) -> None:
     assert isinstance(calls[0]["llm_provider"], MockLLMProvider)
 
 
+def test_analyze_endpoint_accepts_qwen_provider(monkeypatch) -> None:
+    calls = []
+    provider_calls = []
+
+    def fake_create_provider(provider_name, model_name=None, require_configured=False):
+        provider_calls.append(
+            {"provider_name": provider_name, "model_name": model_name, "require_configured": require_configured}
+        )
+        return MockLLMProvider(model_name=model_name or "qwen3.7-plus")
+
+    def fake_pipeline(**kwargs):
+        calls.append(kwargs)
+        return _pipeline_output(kwargs["question"])
+
+    monkeypatch.setattr(main, "create_llm_provider", fake_create_provider)
+    monkeypatch.setattr(main, "run_temporalguard_pipeline", fake_pipeline)
+
+    response = client.post(
+        "/analyze",
+        json={
+            "question": "What is binary search?",
+            "base_answer": None,
+            "llm_provider": "qwen",
+            "model_name": "qwen3.7-plus",
+        },
+    )
+
+    assert response.status_code == 200
+    assert provider_calls == [
+        {"provider_name": "qwen", "model_name": "qwen3.7-plus", "require_configured": True}
+    ]
+    assert isinstance(calls[0]["llm_provider"], MockLLMProvider)
+
+
+def test_batch_analyze_accepts_qwen_provider(monkeypatch) -> None:
+    provider_calls = []
+
+    def fake_create_provider(provider_name, model_name=None, require_configured=False):
+        provider_calls.append(
+            {"provider_name": provider_name, "model_name": model_name, "require_configured": require_configured}
+        )
+        return MockLLMProvider(model_name=model_name or "qwen3.7-plus")
+
+    def fake_pipeline(**kwargs):
+        return _pipeline_output(kwargs["question"])
+
+    monkeypatch.setattr(main, "create_llm_provider", fake_create_provider)
+    monkeypatch.setattr(main, "run_temporalguard_pipeline", fake_pipeline)
+
+    response = client.post(
+        "/batch-analyze",
+        json={
+            "llm_provider": "qwen",
+            "model_name": "qwen3.7-plus",
+            "items": [{"example_id": "EX001", "question": "What is binary search?", "base_answer": None}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["successful_items"] == 1
+    assert provider_calls == [
+        {"provider_name": "qwen", "model_name": "qwen3.7-plus", "require_configured": True}
+    ]
+
+
 def test_analyze_endpoint_returns_clean_error_for_unavailable_provider(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("DEFAULT_MODEL_NAME", raising=False)
@@ -213,6 +278,25 @@ def test_analyze_endpoint_returns_clean_error_for_unavailable_provider(monkeypat
     assert detail["module"] == "api.analyze"
     assert detail["recoverable"] is False
     assert "OPENAI_API_KEY" in detail["message"]
+
+
+def test_analyze_endpoint_returns_clean_error_for_missing_qwen_key(monkeypatch) -> None:
+    monkeypatch.delenv("QWEN_API_KEY", raising=False)
+    monkeypatch.delenv("DEFAULT_QWEN_MODEL", raising=False)
+
+    response = client.post(
+        "/analyze",
+        json={
+            "question": "What is current?",
+            "llm_provider": "qwen",
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["error_type"] == "llm_provider_unavailable"
+    assert detail["module"] == "api.analyze"
+    assert "QWEN_API_KEY" in detail["message"]
 
 
 def test_analyze_endpoint_returns_structured_error(monkeypatch) -> None:

@@ -7,6 +7,7 @@ from temporalguard.llm.providers import (
     MockLLMProvider,
     OpenAIProvider,
     OpenRouterProvider,
+    QwenProvider,
     create_llm_provider,
     normalize_provider_name,
 )
@@ -34,8 +35,11 @@ def test_provider_factory_supports_aliases() -> None:
     assert normalize_provider_name("Demo/mock") == "mock"
     assert normalize_provider_name("Claude/Anthropic") == "anthropic"
     assert normalize_provider_name("OpenRouter") == "openrouter"
+    assert normalize_provider_name("Alibaba Cloud") == "qwen"
+    assert normalize_provider_name("DashScope") == "qwen"
     assert isinstance(create_llm_provider("mock"), MockLLMProvider)
     assert isinstance(create_llm_provider("openrouter"), OpenRouterProvider)
+    assert isinstance(create_llm_provider("qwen"), QwenProvider)
 
 
 def test_missing_openai_api_key_fails_safely(monkeypatch) -> None:
@@ -72,6 +76,17 @@ def test_missing_openrouter_api_key_fails_safely(monkeypatch) -> None:
         OpenRouterProvider(api_key="").generate("Question: What is current?")
 
 
+def test_missing_qwen_api_key_fails_safely(monkeypatch) -> None:
+    monkeypatch.delenv("QWEN_API_KEY", raising=False)
+    monkeypatch.delenv("DEFAULT_QWEN_MODEL", raising=False)
+
+    with pytest.raises(ProviderUnavailableError, match="QWEN_API_KEY"):
+        create_llm_provider("qwen", require_configured=True)
+
+    with pytest.raises(ProviderUnavailableError, match="QWEN_API_KEY"):
+        QwenProvider(api_key="").generate("Question: What is current?")
+
+
 def test_openrouter_provider_parses_mocked_response(monkeypatch) -> None:
     calls = []
 
@@ -105,6 +120,43 @@ def test_openrouter_provider_parses_mocked_response(monkeypatch) -> None:
     assert calls[0]["kwargs"]["headers"]["HTTP-Referer"] == "https://example.test"
     assert calls[0]["kwargs"]["json"]["temperature"] == 0.2
     assert calls[0]["kwargs"]["json"]["max_tokens"] == 64
+
+
+def test_qwen_provider_parses_mocked_response(monkeypatch) -> None:
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "model": "qwen3.7-plus",
+                "choices": [{"message": {"content": "Binary search halves sorted input."}}],
+                "usage": {"prompt_tokens": 8, "completion_tokens": 6, "total_tokens": 14},
+            }
+
+    def fake_post(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return FakeResponse()
+
+    monkeypatch.setattr("temporalguard.llm.providers.requests.post", fake_post)
+
+    provider = QwenProvider(api_key="test-key", model_name="qwen3.7-plus", base_url="https://qwen.test/v1")
+    result = provider.generate("Question: What is binary search?", max_tokens=64)
+
+    assert result["answer"] == "Binary search halves sorted input."
+    assert result["model_name"] == "qwen3.7-plus"
+    assert result["provider"] == "qwen"
+    assert result["usage"]["total_tokens"] == 14
+    assert calls[0]["args"][0] == "https://qwen.test/v1/chat/completions"
+    assert calls[0]["kwargs"]["headers"]["Authorization"] == "Bearer test-key"
+    assert calls[0]["kwargs"]["json"] == {
+        "model": "qwen3.7-plus",
+        "messages": [{"role": "user", "content": "Question: What is binary search?"}],
+        "temperature": 0.2,
+        "max_tokens": 64,
+    }
 
 
 def test_answer_generation_uses_mock_provider() -> None:

@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart3, FileSearch, Menu, MessageSquareText, Settings, ShieldCheck, X } from "lucide-react";
+import { getSuggestedModelForProvider } from "@/lib/api";
 import type { DashboardState, LlmProvider, ReportType, RunMode, SearchProvider } from "@/types/temporalguard";
 
 interface SidebarProps {
@@ -16,6 +17,7 @@ const modes: RunMode[] = ["Demo Mode", "Local Pipeline", "Backend + Model API"];
 const providers: { label: string; value: LlmProvider }[] = [
   { label: "Mock", value: "mock" },
   { label: "OpenRouter", value: "openrouter" },
+  { label: "Qwen", value: "qwen" },
   { label: "OpenAI", value: "openai" },
   { label: "Gemini", value: "gemini" },
   { label: "Anthropic", value: "anthropic" }
@@ -79,7 +81,10 @@ export function Sidebar({ state, onChange, onRun, isOpen, onToggle, isLoading }:
             <select
               className="control"
               value={state.llmProvider}
-              onChange={(event) => onChange({ llmProvider: event.target.value as LlmProvider })}
+              onChange={(event) => {
+                const llmProvider = event.target.value as LlmProvider;
+                onChange({ llmProvider, modelName: getSuggestedModelForProvider(llmProvider, state.modelName) });
+              }}
             >
               {providers.map((provider) => (
                 <option key={provider.value} value={provider.value}>
@@ -106,9 +111,14 @@ export function Sidebar({ state, onChange, onRun, isOpen, onToggle, isLoading }:
               className="control"
               value={state.modelName}
               onChange={(event) => onChange({ modelName: event.target.value })}
-              placeholder="openrouter/free"
+              placeholder={state.llmProvider === "qwen" ? "qwen3.7-plus" : "openrouter/free"}
             />
           </Field>
+          {state.llmProvider === "qwen" ? (
+            <p className="rounded-2xl bg-sage-100 px-4 py-3 text-xs leading-5 text-sage-700">
+              Qwen API key is read from backend environment variables.
+            </p>
+          ) : null}
 
           <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-warm-border bg-white/60 px-4 py-3">
             <span>

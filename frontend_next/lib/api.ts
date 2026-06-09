@@ -1,7 +1,13 @@
-import type { AnalyzeRequest, TemporalGuardOutput } from "@/types/temporalguard";
+import type { AnalyzeRequest, LlmProvider, TemporalGuardOutput } from "@/types/temporalguard";
 
 export function getDefaultApiUrl() {
   return process.env.NEXT_PUBLIC_TEMPORALGUARD_API_URL || "http://127.0.0.1:8000";
+}
+
+export function getSuggestedModelForProvider(provider: LlmProvider, currentModel = "") {
+  if (provider === "qwen") return "qwen3.7-plus";
+  if (provider === "openrouter") return "openrouter/free";
+  return currentModel;
 }
 
 export async function analyzeTemporalGuard(apiUrl: string, payload: AnalyzeRequest): Promise<TemporalGuardOutput> {
