@@ -51,9 +51,10 @@ SOURCE_PRIORITY = {
 
 TEMPORAL_CATEGORIES_REQUIRING_RETRIEVAL = {"RECENT_ONLY", "TIME_SENSITIVE", "VERSION_DEPENDENT", "HISTORICAL"}
 WEAK_DOMAIN_HINTS = ("blog", "forum", "reddit", "medium.com", "quora", "stack overflow")
-PYTHON_DOWNLOAD_URL_PATTERN = re.compile(r"https?://(?:www\.)?python\.org/downloads/(?:release/)?", re.IGNORECASE)
+PYTHON_DOWNLOAD_URL_PATTERN = re.compile(r"https?://(?:www\.)?python\.org/downloads(?:/|$)", re.IGNORECASE)
 UNSTABLE_VERSION_HINT_PATTERN = re.compile(
-    r"\b(alpha|beta|release candidate|rc\d*|preview|pre[- ]?release|development|dev|schedule|planned|future)\b",
+    r"\b(alpha|beta|release candidate|rc\d*|preview|pre[- ]?release|development|dev|schedule|planned|future)\b"
+    r"|\b\d+(?:\.\d+){1,3}(?:a|b|rc)\d+\b",
     re.IGNORECASE,
 )
 STABLE_RELEASE_HINT_PATTERN = re.compile(
@@ -317,11 +318,12 @@ def _ranking_key(ranked_result: _RankedResult, claim: dict[str, Any]) -> tuple[A
     result = ranked_result.result
     if _is_python_version_claim(claim):
         version_key = _stable_version_sort_key(result)
-        text = _result_text(result)
+        source_rank = _python_download_source_rank(result)
         return (
-            0 if _is_python_downloads_result(result) else 1,
-            1 if _has_unstable_version_context(text) else 0,
+            0 if source_rank == 0 else 1,
+            0 if version_key != (0, 0, 0, 0) else 1,
             tuple(-part for part in version_key),
+            source_rank,
             -ranked_result.score,
             SOURCE_PRIORITY.get(_validate_source_type(result.source_type), 99),
         )
@@ -507,13 +509,14 @@ def _extract_version_value(
         end = min(len(text or ""), match.end() + 48)
         context = (text or "")[start:end]
         raw_subject = str(match.group("subject") or "").strip(" -_")
+        unstable = _has_unstable_candidate_context(text or "", match.start(), match.end())
         candidates.append(
             {
                 "match": match,
                 "numbers": tuple(int(part) for part in match.group("version").split(".")),
                 "subject": _normalize_version_subject(raw_subject),
-                "stable": _has_stable_release_context(context) and not _has_unstable_version_context(context),
-                "unstable": _has_unstable_version_context(context),
+                "stable": _has_stable_release_context(context) and not unstable,
+                "unstable": unstable,
             }
         )
     if not candidates:
@@ -527,6 +530,9 @@ def _extract_version_value(
         elif bare_subject_matches:
             candidates = bare_subject_matches
         else:
+            return None
+        candidates = _filter_python_language_version_candidates(candidates)
+        if not candidates:
             return None
     usable = [candidate for candidate in candidates if not candidate["unstable"]]
     if prefer_stable:
@@ -566,6 +572,35 @@ def _is_python_downloads_result(result: SearchResult) -> bool:
     return PYTHON_DOWNLOAD_URL_PATTERN.search(str(result.url or "")) is not None
 
 
+def _python_download_source_rank(result: SearchResult) -> int:
+    url = str(result.url or "").lower().rstrip("/")
+    if re.fullmatch(r"https?://(?:www\.)?python\.org/downloads", url):
+        return 0
+    if re.fullmatch(r"https?://(?:www\.)?python\.org/downloads/source", url):
+        return 0
+    if "python.org/downloads/release/" in url:
+        return 1
+    if "python.org/downloads/windows" in url:
+        return 2
+    if "python.org/downloads/" in url:
+        return 2
+    if "devguide.python.org" in url:
+        return 3
+    if "python.org" in url:
+        return 4
+    return 5
+
+
+def _filter_python_language_version_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    language_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.get("numbers") and candidate["numbers"][0] in {2, 3}
+    ]
+    python_3_candidates = [candidate for candidate in language_candidates if candidate["numbers"][0] == 3]
+    return python_3_candidates or language_candidates
+
+
 def _result_text(result: SearchResult) -> str:
     return " ".join(
         str(part or "")
@@ -584,6 +619,14 @@ def _is_python_downloads_result_available_context(text: str) -> bool:
 
 def _has_unstable_version_context(text: str) -> bool:
     return UNSTABLE_VERSION_HINT_PATTERN.search(text or "") is not None
+
+
+def _has_unstable_candidate_context(text: str, start: int, end: int) -> bool:
+    suffix = (text or "")[end : min(len(text or ""), end + 8)]
+    if re.match(r"(?:a|b|rc)\d+\b", suffix, re.IGNORECASE):
+        return True
+    local = (text or "")[max(0, start - 24) : min(len(text or ""), end + 32)]
+    return _has_unstable_version_context(local)
 
 
 def _has_stable_release_context(text: str) -> bool:

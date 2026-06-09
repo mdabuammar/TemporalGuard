@@ -30,14 +30,15 @@ STATUS_GROUPS = {
     "not_released": {"not released"},
 }
 UNSTABLE_VERSION_HINT_PATTERN = re.compile(
-    r"\b(alpha|beta|release candidate|rc\d*|preview|pre[- ]?release|development|dev|schedule|planned|future)\b",
+    r"\b(alpha|beta|release candidate|rc\d*|preview|pre[- ]?release|development|dev|schedule|planned|future)\b"
+    r"|\b\d+(?:\.\d+){1,3}(?:a|b|rc)\d+\b",
     re.IGNORECASE,
 )
 STABLE_RELEASE_HINT_PATTERN = re.compile(
     r"\b(latest|stable|download|downloads|release|released|available)\b",
     re.IGNORECASE,
 )
-PYTHON_DOWNLOAD_URL_PATTERN = re.compile(r"https?://(?:www\.)?python\.org/downloads/", re.IGNORECASE)
+PYTHON_DOWNLOAD_URL_PATTERN = re.compile(r"https?://(?:www\.)?python\.org/downloads(?:/|$)", re.IGNORECASE)
 
 
 def verify_temporal_claims(
@@ -176,12 +177,13 @@ def _select_best_evidence(
 def _version_evidence_sort_key(item: dict[str, Any], claim: dict[str, Any] | None = None) -> tuple[Any, ...]:
     candidate = _best_version_candidate_for_item(item, claim)
     numbers = candidate["numbers"] if candidate else (0, 0, 0, 0)
-    text = _build_evidence_text(item)
+    source_rank = _python_download_source_rank(item)
     return (
-        1 if PYTHON_DOWNLOAD_URL_PATTERN.search(str(item.get("url") or "")) else 0,
+        1 if source_rank == 0 else 0,
+        numbers,
+        -source_rank,
         1 if candidate and candidate.get("stable") else 0,
         0 if candidate and candidate.get("unstable") else 1,
-        numbers,
         float(item.get("relevance_score") or 0.0),
     )
 
@@ -191,7 +193,8 @@ def _best_version_candidate_for_item(
     claim: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     value_candidates = _extract_version_candidates(str(item.get("evidence_value") or ""))
-    candidates = value_candidates or _extract_version_candidates(_build_evidence_text(item))
+    text_candidates = _extract_version_candidates(_build_evidence_text(item))
+    candidates = _unique_version_candidates(value_candidates + text_candidates)
     if not candidates:
         return None
     if isinstance(claim, dict):
@@ -211,6 +214,10 @@ def _best_version_candidate_for_item(
             ]
             if subject_matched:
                 candidates = subject_matched
+        if _is_python_claim(claim):
+            candidates = _filter_python_language_version_candidates(candidates)
+            if not candidates:
+                return None
     stable = [candidate for candidate in candidates if candidate.get("stable")]
     non_unstable = [candidate for candidate in candidates if not candidate.get("unstable")]
     pool = stable or non_unstable or candidates
@@ -225,6 +232,7 @@ def _build_evidence_text(evidence_item: dict[str, Any]) -> str:
         str(evidence_item.get("evidence_summary") or ""),
         str(evidence_item.get("snippet") or ""),
         str(evidence_item.get("content") or ""),
+        str(evidence_item.get("url") or ""),
         str(evidence_item.get("quote") or ""),
     ]
     return " ".join(part for part in parts if part).strip()
@@ -248,14 +256,15 @@ def _extract_version_candidates(text: str) -> list[dict[str, Any]]:
         subject = _normalize_version_subject(raw_subject)
         raw = match.group(0).strip(" .,:;()[]{}")
         context = _version_context(text or "", match.start(), match.end())
+        unstable = _has_unstable_candidate_context(text or "", match.start(), match.end())
         candidates.append(
             {
                 "raw": _format_version_value(subject, raw_subject, version, raw),
                 "subject": subject,
                 "numbers": tuple(int(part) for part in version.split(".")),
                 "normalized": ".".join(str(int(part)) for part in version.split(".")),
-                "stable": _has_stable_release_context(context) and not _has_unstable_version_context(context),
-                "unstable": _has_unstable_version_context(context),
+                "stable": _has_stable_release_context(context) and not unstable,
+                "unstable": unstable,
             }
         )
     return _unique_version_candidates(candidates)
@@ -368,7 +377,8 @@ def _same_major_subject_version(claim_value: str, evidence_value: str) -> bool:
 def _normalize_version_subject(subject: str) -> str:
     text = re.sub(r"[^A-Za-z0-9+#]+", "", subject or "").lower()
     generic = {"a", "an", "is", "the", "v", "version", "release", "latest", "current", "stable", "download"}
-    return "" if text in generic else text
+    aliases = {"python3": "python", "cpython": "python"}
+    return "" if text in generic else aliases.get(text, text)
 
 
 def _format_version_value(subject: str, raw_subject: str, version: str, raw: str) -> str:
@@ -398,6 +408,14 @@ def _version_context(text: str, start: int, end: int) -> str:
 
 def _has_unstable_version_context(text: str) -> bool:
     return UNSTABLE_VERSION_HINT_PATTERN.search(text or "") is not None
+
+
+def _has_unstable_candidate_context(text: str, start: int, end: int) -> bool:
+    suffix = (text or "")[end : min(len(text or ""), end + 8)]
+    if re.match(r"(?:a|b|rc)\d+\b", suffix, re.IGNORECASE):
+        return True
+    local = (text or "")[max(0, start - 24) : min(len(text or ""), end + 32)]
+    return _has_unstable_version_context(local)
 
 
 def _has_stable_release_context(text: str) -> bool:
@@ -459,6 +477,10 @@ def _compare_version_candidates(
         stable_evidence = [candidate for candidate in compatible_evidence if candidate.get("stable")]
         non_unstable_evidence = [candidate for candidate in compatible_evidence if not candidate.get("unstable")]
         candidate_pool = stable_evidence or non_unstable_evidence or compatible_evidence
+        if _is_python_claim(claim):
+            candidate_pool = _filter_python_language_version_candidates(candidate_pool)
+            if not candidate_pool:
+                continue
         evidence_candidate = max(candidate_pool, key=lambda candidate: candidate["numbers"])
         claim_value = str(claim_candidate["raw"])
         evidence_value = str(evidence_candidate["raw"])
@@ -803,6 +825,40 @@ def _is_current_or_latest(claim: dict[str, Any], temporal_category: str | None) 
 def _is_version_claim(claim: dict[str, Any]) -> bool:
     text = f"{claim.get('claim_text') or ''} {claim.get('claim_type') or ''} {claim.get('evidence_need') or ''}"
     return re.search(r"\b(version|release|software_version|version_specific|latest)\b", text, re.IGNORECASE) is not None
+
+
+def _is_python_claim(claim: dict[str, Any]) -> bool:
+    text = f"{claim.get('claim_text') or ''} {' '.join(str(entity) for entity in claim.get('entities', []))}"
+    return re.search(r"\bpython\b", text, re.IGNORECASE) is not None
+
+
+def _python_download_source_rank(item: dict[str, Any]) -> int:
+    url = str(item.get("url") or "").lower().rstrip("/")
+    if re.fullmatch(r"https?://(?:www\.)?python\.org/downloads", url):
+        return 0
+    if re.fullmatch(r"https?://(?:www\.)?python\.org/downloads/source", url):
+        return 0
+    if "python.org/downloads/release/" in url:
+        return 1
+    if "python.org/downloads/windows" in url:
+        return 2
+    if "python.org/downloads/" in url:
+        return 2
+    if "devguide.python.org" in url:
+        return 3
+    if "python.org" in url:
+        return 4
+    return 5
+
+
+def _filter_python_language_version_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    language_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.get("numbers") and candidate["numbers"][0] in {2, 3}
+    ]
+    python_3_candidates = [candidate for candidate in language_candidates if candidate["numbers"][0] == 3]
+    return python_3_candidates or language_candidates
 
 
 def _is_still_or_current_claim(claim: dict[str, Any]) -> bool:

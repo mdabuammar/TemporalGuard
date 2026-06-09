@@ -428,6 +428,60 @@ def test_latest_python_older_major_minor_is_outdated_against_newer_evidence() ->
     assert verification["evidence_value"] == "Python 3.14.5"
 
 
+def test_latest_python_3124_claim_is_outdated_against_3145_evidence() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "The latest Python version is 3.12.4.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Download Python",
+                            "url": "https://www.python.org/downloads/",
+                            "publisher": "Python Software Foundation",
+                            "evidence_summary": "Download Python 3.14.5.",
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 0.98,
+                        }
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "OUTDATED"
+    assert verification["claim_value"] == "3.12.4"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
 def test_python_stable_release_preferred_over_future_development_version() -> None:
     result = verify_temporal_claims(
         "What is the latest Python version?",
@@ -696,7 +750,7 @@ def test_python_verifier_ignores_unrelated_download_tool_versions() -> None:
                             "title": "Python Source Releases",
                             "url": "https://www.python.org/downloads/source",
                             "publisher": "python.org",
-                            "evidence_summary": "Stable Releases · Python 3.14.5 - May 10, 2026.",
+                            "evidence_summary": "Stable Releases - Python 3.14.5 - May 10, 2026.",
                             "evidence_value": "Python 3.14.5",
                             "source_type": "official",
                             "relevance_score": 1.0,
@@ -722,6 +776,117 @@ def test_python_verifier_ignores_unrelated_download_tool_versions() -> None:
 
     assert verification["verification_status"] == "CONTRADICTED"
     assert verification["best_evidence_id"] == "E2"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
+def test_latest_python_313_claim_is_outdated_against_3145_evidence() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.13 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python", "Python 3.13"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Python Source Releases",
+                            "url": "https://www.python.org/downloads/source",
+                            "publisher": "python.org",
+                            "evidence_summary": (
+                                "Stable Releases - Python 3.13.13 - April 7, 2026 - "
+                                "Python 3.14.5 - May 10, 2026."
+                            ),
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 1.0,
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "OUTDATED"
+    assert verification["claim_value"] == "Python 3.13"
+    assert verification["evidence_value"] == "Python 3.14.5"
+
+
+def test_latest_python_compact_3145_claim_is_supported() -> None:
+    result = verify_temporal_claims(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python3.14.5 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python", "Python 3.14.5"],
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Download Python",
+                            "url": "https://www.python.org/downloads/",
+                            "publisher": "python.org",
+                            "evidence_summary": "Download Python 3.14.5.",
+                            "evidence_value": "Python 3.14.5",
+                            "source_type": "official",
+                            "relevance_score": 1.0,
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            "freshness_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_freshness_score": 0.98,
+                    "claim_reliability_score": 0.98,
+                    "claim_temporal_risk": "low",
+                    "best_evidence_id": "E1",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "SUPPORTED"
+    assert verification["claim_value"] == "Python 3.14.5"
     assert verification["evidence_value"] == "Python 3.14.5"
 
 

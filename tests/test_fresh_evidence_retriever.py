@@ -492,6 +492,139 @@ def test_python_downloads_tie_break_prefers_highest_stable_release_value() -> No
     assert evidence["evidence_value"] == "Python 3.14.5"
 
 
+def test_python_mixed_official_versions_selects_highest_stable_release() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Python Source Releases",
+                "url": "https://www.python.org/downloads/source",
+                "snippet": (
+                    "Stable Releases - Python 3.13.13 - April 7, 2026 - "
+                    "Python 3.12.0 - Oct. 2, 2023 - Python 3.14.5 - May 10, 2026"
+                ),
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            }
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "What is the latest stable Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.13 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_sensitivity": "high",
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["evidence_value"] == "Python 3.14.5"
+
+
+def test_python_mixed_tavily_style_results_prefers_root_download_latest_stable() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Python Releases for Windows | Python.org",
+                "url": "https://www.python.org/downloads/windows",
+                "snippet": (
+                    "Stable Releases Python install manager 26.2 - May 11, 2026. "
+                    "Python 3.13.13 - April 7, 2026."
+                ),
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            },
+            {
+                "title": "Python Release Python 3.13.1 | Python.org",
+                "url": "https://www.python.org/downloads/release/python-3131/",
+                "snippet": "Python 3.13.1 is the latest maintenance release for the 3.13 series.",
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            },
+            {
+                "title": "Download Python | Python.org",
+                "url": "https://www.python.org/downloads/",
+                "snippet": "Download Python 3.14.5. Looking for Python with a different OS?",
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            },
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "What is the latest stable Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.13 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_sensitivity": "high",
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["url"] == "https://www.python.org/downloads/"
+    assert evidence["evidence_value"] == "Python 3.14.5"
+    assert "26.2" not in str(evidence["evidence_value"])
+
+
+def test_python_prerelease_is_ignored_when_stable_release_available() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Python Downloads",
+                "url": "https://www.python.org/downloads/",
+                "snippet": "Python 3.15.0a1 is a prerelease. Stable Releases include Python 3.14.5.",
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            }
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "What is the current Python release?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.13 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_sensitivity": "high",
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["evidence_value"] == "Python 3.14.5"
+
+
 def test_python_version_retrieval_uses_fallback_query_when_first_search_lacks_download_value() -> None:
     provider = QueryAwareMockSearchProvider(
         {
@@ -613,7 +746,7 @@ def test_python_version_retrieval_ignores_unrelated_download_tool_versions() -> 
                 {
                     "title": "Python Source Releases",
                     "url": "https://www.python.org/downloads/source",
-                    "snippet": "Stable Releases · Python 3.14.5 - May 10, 2026 · Python 3.13.13 - April 7, 2026",
+                    "snippet": "Stable Releases - Python 3.14.5 - May 10, 2026 - Python 3.13.13 - April 7, 2026",
                     "publisher": "Python Software Foundation",
                     "source_type": "official",
                 },
@@ -643,4 +776,49 @@ def test_python_version_retrieval_ignores_unrelated_download_tool_versions() -> 
 
     evidence = result["evidence_results"][0]["evidence_items"][0]
     assert evidence["url"] == "https://www.python.org/downloads/source"
+    assert evidence["evidence_value"] == "Python 3.14.5"
+
+
+def test_python_downloads_url_without_trailing_slash_ignores_install_manager_version() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Download Python | Python.org",
+                "url": "https://www.python.org/downloads",
+                "snippet": "Stable Releases Python install manager 26.2 - May 11, 2026.",
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            },
+            {
+                "title": "Python Source Releases",
+                "url": "https://www.python.org/downloads/source/",
+                "snippet": "Latest Python 3 Release - Python 3.14.5.",
+                "publisher": "Python Software Foundation",
+                "source_type": "official",
+            },
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "What is the latest Python version?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Python 3.12.4 is the latest Python version.",
+                    "claim_type": "software_version",
+                    "entities": ["Python"],
+                    "temporal_sensitivity": "high",
+                    "temporal_anchor": "latest",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["url"] == "https://www.python.org/downloads/source/"
     assert evidence["evidence_value"] == "Python 3.14.5"
