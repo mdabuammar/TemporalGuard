@@ -347,3 +347,103 @@ def test_no_correction_needed_returns_original_answer() -> None:
 
 def test_backward_compatible_call_preserves_answer() -> None:
     assert generate_correction("answer", []) == {"answer": "answer", "corrected": False}
+
+
+def test_world_cup_correction_is_direct_final_answer() -> None:
+    result = generate_correction(
+        "Who won the 2014 FIFA World Cup?",
+        "France won the 2014 FIFA World Cup.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "France won the 2014 FIFA World Cup.",
+                    "verification_status": "CONTRADICTED",
+                    "claim_value": "France",
+                    "evidence_value": "Germany",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "CONTRADICTED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="HISTORICAL",
+    )
+
+    assert result["corrected_answer"] == "Germany won the 2014 FIFA World Cup."
+
+
+def test_who_pheic_correction_mentions_actual_date() -> None:
+    result = generate_correction(
+        "When did WHO end the COVID-19 public health emergency of international concern?",
+        "WHO ended it in 2022.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "WHO ended it in 2022.",
+                    "verification_status": "CONTRADICTED",
+                    "claim_value": "2022",
+                    "evidence_value": "May 5, 2023",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "CONTRADICTED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="HISTORICAL",
+    )
+
+    assert result["corrected_answer"] == (
+        "WHO ended the COVID-19 public health emergency of international concern on May 5, 2023."
+    )
+
+
+def test_node_lifecycle_correction_is_user_friendly() -> None:
+    result = generate_correction(
+        "Is Node.js 18 still actively supported?",
+        "Yes, Node.js 18 is still active LTS.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Yes, Node.js 18 is still active LTS.",
+                    "verification_status": "OUTDATED",
+                    "claim_value": "active LTS",
+                    "evidence_value": "end-of-life on April 30, 2025",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "OUTDATED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="RECENT_ONLY",
+    )
+
+    assert result["corrected_answer"] == (
+        "Node.js 18 is no longer actively supported. It reached end-of-life on April 30, 2025."
+    )
+
+
+def test_pandas_append_correction_is_direct() -> None:
+    result = generate_correction(
+        "Does pandas 2.0 still support DataFrame.append?",
+        "Yes, pandas 2.0 still supports DataFrame.append.",
+        {
+            "verification_results": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Yes, pandas 2.0 still supports DataFrame.append.",
+                    "verification_status": "CONTRADICTED",
+                    "claim_value": "DataFrame.append is supported",
+                    "evidence_value": "DataFrame.append was removed in pandas 2.0; use pandas.concat",
+                    "risk_level": "high",
+                    "requires_correction": True,
+                }
+            ]
+        },
+        {"outdatedness_status": "CONTRADICTED", "requires_correction": True, "answer_temporal_risk": "high"},
+        temporal_category="VERSION_DEPENDENT",
+    )
+
+    assert result["corrected_answer"] == "DataFrame.append was removed in pandas 2.0. Use pandas.concat instead."

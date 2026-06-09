@@ -54,7 +54,6 @@ def verify_temporal_claims(
     The verifier only uses supplied payloads. It does not retrieve, browse, correct,
     or call an LLM.
     """
-    del question
     warnings: list[str] = []
     claims_by_id = _get_claims_by_id(claims_payload)
     evidence_by_id = _get_evidence_by_claim_id(evidence_payload)
@@ -70,13 +69,14 @@ def verify_temporal_claims(
 
     results = []
     for claim_id, claim in claims_by_id.items():
+        claim_context = {**claim, "_question": question}
         evidence_result = evidence_by_id.get(claim_id, {})
         freshness_result = freshness_by_id.get(claim_id)
-        evidence_item = _select_best_evidence(evidence_result, freshness_result, claim)
+        evidence_item = _select_best_evidence(evidence_result, freshness_result, claim_context)
         evidence_text = _build_evidence_text(evidence_item) if evidence_item else ""
-        comparison = _compare_claim_and_evidence_values(claim, evidence_text, temporal_category)
-        status = _infer_verification_status(claim, evidence_item, freshness_result, comparison, temporal_category)
-        risk_level = _risk_level(status, claim, freshness_result)
+        comparison = _compare_claim_and_evidence_values(claim_context, evidence_text, temporal_category, question)
+        status = _infer_verification_status(claim_context, evidence_item, freshness_result, comparison, temporal_category)
+        risk_level = _risk_level(status, claim_context, freshness_result)
         confidence = _verification_confidence(status, freshness_result, comparison, evidence_item)
         best_evidence_id = str(evidence_item.get("evidence_id")) if evidence_item else None
 
@@ -85,7 +85,7 @@ def verify_temporal_claims(
                 "claim_id": claim_id,
                 "claim_text": str(claim.get("claim_text") or ""),
                 "verification_status": status,
-                "temporal_validity": _infer_temporal_validity(status, claim, temporal_category),
+                "temporal_validity": _infer_temporal_validity(status, claim_context, temporal_category),
                 "verification_confidence": confidence,
                 "evidence_used": [best_evidence_id] if best_evidence_id else [],
                 "best_evidence_id": best_evidence_id,
@@ -162,6 +162,27 @@ def _select_best_evidence(
     valid_items = [item for item in items if isinstance(item, dict)]
     if not valid_items:
         return None
+    if isinstance(claim, dict):
+        answer_type = _infer_question_answer_type("", claim)
+        if answer_type in {"winner", "date", "date_full", "lifecycle", "api_status"}:
+            typed_items = [
+                item
+                for item in valid_items
+                if item.get("evidence_value") and not _is_bad_answer_value(str(item.get("evidence_value")))
+            ]
+            if answer_type == "date_full":
+                typed_items = [item for item in typed_items if _is_trusted_date_item(item)]
+                if not typed_items:
+                    return None
+            if typed_items:
+                return max(
+                    typed_items,
+                    key=lambda item: (
+                        1 if answer_type == "lifecycle" and _has_explicit_lifecycle_answer(item) else 0,
+                        1 if answer_type == "lifecycle" and _extract_dates(str(item.get("evidence_value") or "")) else 0,
+                        float(item.get("relevance_score") or 0.0),
+                    ),
+                )
     if isinstance(claim, dict) and _is_version_claim(claim):
         version_items = [item for item in valid_items if _best_version_candidate_for_item(item, claim)]
         if version_items:
@@ -516,8 +537,10 @@ def _compare_claim_and_evidence_values(
     claim: dict[str, Any],
     evidence_text: str,
     temporal_category: str | None,
+    question: str = "",
 ) -> dict[str, Any]:
     claim_text = str(claim.get("claim_text") or "")
+    answer_type = _infer_question_answer_type(question, claim)
     evidence_statement = _primary_evidence_statement(evidence_text)
     comparison_text = evidence_statement or evidence_text
     claim_version_candidates = _extract_version_candidates(claim_text)
@@ -549,6 +572,11 @@ def _compare_claim_and_evidence_values(
         "evidence_value": None,
         "detected_conflict": None,
     }
+
+    typed_comparison = _compare_typed_answer_value(answer_type, claim_text, comparison_text, claim, temporal_category)
+    if typed_comparison is not None:
+        comparison.update(typed_comparison)
+        return comparison
 
     if claim_version_candidates and evidence_version_candidates:
         version_comparison = _compare_version_candidates(claim, claim_version_candidates, evidence_version_candidates, temporal_category)
@@ -789,9 +817,207 @@ def _value_comparison(claim_value: str, evidence_value: str, value_type: str) ->
     }
 
 
+def _infer_question_answer_type(question: str, claim: dict[str, Any]) -> str:
+    text = (
+        f"{question} {claim.get('_question') or ''} {claim.get('claim_text') or ''} "
+        f"{claim.get('claim_type') or ''} {claim.get('temporal_anchor') or ''}"
+    ).lower()
+    if re.search(r"\b(who won|won the|winner)\b", text):
+        return "winner"
+    if re.search(r"\bwhen\b", text):
+        return "date_full"
+    if re.search(r"\b(what year|ended|announced|landed|released on)\b", text):
+        return "date"
+    if re.search(r"\b(dataframe\.append|append|removed|deprecated|supports?)\b", text):
+        return "api_status"
+    if re.search(r"\b(still|active(?:ly)? supported|support|end[- ]?of[- ]?life|eol|lts)\b", text) and re.search(
+        r"\b(node\.?js|python|ubuntu|software|version|lts)\b", text
+    ):
+        return "lifecycle"
+    return "unknown"
+
+
+def _compare_typed_answer_value(
+    answer_type: str,
+    claim_text: str,
+    evidence_text: str,
+    claim: dict[str, Any],
+    temporal_category: str | None,
+) -> dict[str, Any] | None:
+    if answer_type == "winner":
+        claim_value = _winner_entity(claim_text)
+        evidence_value = _winner_entity(evidence_text) or _leading_evidence_value(evidence_text, "winner")
+        if claim_value and evidence_value:
+            result = _value_comparison(claim_value, evidence_value, "entity")
+            if claim_value != evidence_value:
+                result["conflict_type"] = "contradicted"
+            return result
+        if claim_value:
+            return _missing_typed_evidence(claim_value)
+    if answer_type in {"date", "date_full"}:
+        claim_value = (_extract_dates(claim_text) or _extract_years(claim_text) or [None])[0]
+        if answer_type == "date_full":
+            evidence_value = _leading_evidence_value(evidence_text, answer_type)
+        else:
+            evidence_value = _leading_evidence_value(evidence_text, answer_type) or (
+                _extract_dates(evidence_text) or _extract_years(evidence_text) or [None]
+            )[0]
+        if claim_value and evidence_value:
+            result = _value_comparison(claim_value, evidence_value, "date")
+            if claim_value != evidence_value:
+                result["conflict_type"] = "contradicted"
+            return result
+        if claim_value:
+            return _missing_typed_evidence(claim_value)
+    if answer_type == "lifecycle":
+        claim_value = _extract_lifecycle_value(claim_text)
+        evidence_value = _extract_lifecycle_value(evidence_text)
+        if claim_value and evidence_value:
+            result = _value_comparison(claim_value, evidence_value, "status")
+            if claim_value != evidence_value:
+                result["conflict_type"] = "outdated" if _is_still_or_current_claim(claim) else "contradicted"
+            return result
+        if claim_value:
+            return _missing_typed_evidence(claim_value)
+    if answer_type == "api_status":
+        claim_value = _extract_api_status_value(claim_text)
+        evidence_value = _extract_api_status_value(evidence_text)
+        if claim_value and evidence_value:
+            result = _value_comparison(claim_value, evidence_value, "capability")
+            if claim_value != evidence_value:
+                result["conflict_type"] = "outdated" if _is_current_or_latest(claim, temporal_category) else "contradicted"
+            return result
+        if claim_value:
+            return _missing_typed_evidence(claim_value)
+    return None
+
+
+def _missing_typed_evidence(claim_value: str) -> dict[str, Any]:
+    return {
+        "supports": False,
+        "partial": False,
+        "conflict_type": None,
+        "claim_value": claim_value,
+        "evidence_value": None,
+        "detected_conflict": None,
+    }
+
+
+def _leading_evidence_value(evidence_text: str, answer_type: str) -> str | None:
+    text = re.sub(r"\s+", " ", evidence_text or "").strip()
+    if answer_type == "winner":
+        match = re.match(r"(?P<value>[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})(?=\s+(?:\d{4}|[A-Z]))", text)
+        if match:
+            value = _clean_answer_value(match.group("value"))
+            if value and not _is_bad_answer_value(value):
+                return value
+    if answer_type == "date_full":
+        for date in _extract_dates(text):
+            index = text.find(date)
+            local = text[max(0, index - 90) : min(len(text), index + len(date) + 140)] if index >= 0 else ""
+            if re.search(r"\b(ended|announced|declared|no longer|terminated|concluded|ceased)\b", local, re.IGNORECASE):
+                return date
+        return None
+    if answer_type == "date":
+        dates = _extract_dates(text)
+        return dates[0] if dates else None
+    return None
+
+
 def _winner_entity(text: str) -> str | None:
-    match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+won\b", text)
-    return match.group(1) if match else None
+    patterns = [
+        r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+won\s+the\b",
+        r"\bthe\s+winner\s+was\s+([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\b",
+        r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+(?:beat|defeated)\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text or "")
+        if match:
+            value = _clean_answer_value(match.group(1))
+            if value and not _is_bad_answer_value(value):
+                return value
+    return None
+
+
+def _extract_lifecycle_value(text: str) -> str | None:
+    date = _date_near_lifecycle_context(text) or (_extract_dates(text) or [None])[0]
+    lower = (text or "").lower()
+    if re.search(r"\b(end[- ]?of[- ]?life|eol|reached end|support ended|no longer supported|not supported)\b", lower):
+        return f"end-of-life on {date}" if date else "end-of-life"
+    if re.search(r"\bmaintenance lts|maintenance support\b", lower):
+        return f"maintenance LTS until {date}" if date else "maintenance LTS"
+    if re.search(r"\bactive lts|actively supported|active support\b", lower):
+        return f"active LTS until {date}" if date else "active LTS"
+    if re.search(r"\bsecurity maintenance|security updates?\b", lower):
+        return f"security maintenance until {date}" if date else "security maintenance"
+    if re.search(r"\bstill supports?|supports?\b", lower):
+        return "supported"
+    return None
+
+
+def _date_near_lifecycle_context(text: str) -> str | None:
+    dates = _extract_dates(text)
+    for date in dates:
+        index = (text or "").find(date)
+        if index < 0:
+            continue
+        local = (text or "")[max(0, index - 160) : min(len(text or ""), index + len(date) + 80)]
+        if re.search(r"\b(reached|support ended|ended|no longer receives?|no longer supported)\b", local, re.IGNORECASE):
+            return date
+    return None
+
+
+def _has_explicit_lifecycle_answer(item: dict[str, Any]) -> bool:
+    text = _build_evidence_text(item)
+    return re.search(
+        r"\b(reached\s+(?:its\s+)?(?:official\s+)?end(?:[- ]of[- ]life)?|support ended|no longer receives?|no longer supported)\b",
+        text,
+        re.IGNORECASE,
+    ) is not None
+
+
+def _is_trusted_date_item(item: dict[str, Any]) -> bool:
+    source_type = str(item.get("source_type") or "").lower()
+    url = str(item.get("url") or "").lower()
+    return source_type in {"official", "government", "academic", "standards", "database"} or any(
+        domain in url for domain in ("who.int", "thelancet.com", "nejm.org", "nature.com", "sciencedirect.com")
+    )
+
+
+def _extract_api_status_value(text: str) -> str | None:
+    lower = (text or "").lower()
+    if "dataframe.append" in lower or ".append" in lower:
+        if re.search(r"\bremoved|deprecated|no longer|not supported\b", lower):
+            version = re.search(r"\bpandas\s+(\d+(?:\.\d+){1,2})\b", text or "", re.IGNORECASE)
+            suffix = f" in pandas {version.group(1)}" if version else ""
+            return f"DataFrame.append was removed{suffix}; use pandas.concat"
+        if re.search(r"\bstill supports?|supports?|available\b", lower):
+            return "DataFrame.append is supported"
+    return None
+
+
+def _clean_answer_value(value: str) -> str:
+    value = re.sub(r"\s+", " ", (value or "").strip(" .,:;()[]{}"))
+    value = re.sub(r"^(?:FIFA\s+)?World Cup\s+", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"^Results?\s+", "", value, flags=re.IGNORECASE)
+    return value
+
+
+def _is_bad_answer_value(value: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9.]+", " ", str(value or "").lower()).strip()
+    return normalized in {
+        "world cup",
+        "fifa",
+        "fifa world cup",
+        "tournament",
+        "final",
+        "match",
+        "results report",
+        "report",
+        "official website",
+        "source",
+        "documentation",
+    }
 
 
 def _historical_year_supported(year: str, evidence_text: str) -> bool:

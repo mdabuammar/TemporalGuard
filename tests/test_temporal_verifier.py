@@ -890,6 +890,172 @@ def test_latest_python_compact_3145_claim_is_supported() -> None:
     assert verification["evidence_value"] == "Python 3.14.5"
 
 
+def test_world_cup_winner_uses_actual_winner_entity() -> None:
+    result = verify_temporal_claims(
+        "Who won the 2014 FIFA World Cup?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "France won the 2014 FIFA World Cup.",
+                    "claim_type": "event_result",
+                    "entities": ["France", "2014 FIFA World Cup"],
+                    "temporal_anchor": "2014",
+                    "evidence_need": "historical",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "2014 FIFA World Cup",
+                            "evidence_summary": "Germany won the 2014 FIFA World Cup.",
+                            "evidence_value": "Germany",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "HISTORICAL",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "CONTRADICTED"
+    assert verification["claim_value"] == "France"
+    assert verification["evidence_value"] == "Germany"
+
+
+def test_who_pheic_date_uses_actual_date_not_title_fragment() -> None:
+    result = verify_temporal_claims(
+        "When did WHO end the COVID-19 public health emergency of international concern?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "WHO ended the COVID-19 public health emergency in 2022.",
+                    "claim_type": "historical_fact",
+                    "entities": ["WHO", "COVID-19 public health emergency"],
+                    "temporal_anchor": "2022",
+                    "evidence_need": "historical",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Results Report",
+                            "evidence_summary": "WHO ended the PHEIC on May 5, 2023.",
+                            "evidence_value": "May 5, 2023",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "HISTORICAL",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] == "CONTRADICTED"
+    assert verification["claim_value"] == "2022"
+    assert verification["evidence_value"] == "May 5, 2023"
+
+
+def test_node_lifecycle_uses_support_status_not_unrelated_numbers() -> None:
+    result = verify_temporal_claims(
+        "Is Node.js 18 still actively supported?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Yes, Node.js 18 is still active LTS.",
+                    "claim_type": "software_version",
+                    "entities": ["Node.js 18"],
+                    "temporal_anchor": "current",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "Node.js previous releases",
+                            "evidence_summary": "Node.js 18 reached end-of-life on April 30, 2025.",
+                            "evidence_value": "end-of-life on April 30, 2025",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "RECENT_ONLY",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] in {"OUTDATED", "CONTRADICTED"}
+    assert verification["evidence_value"] == "end-of-life on April 30, 2025"
+
+
+def test_pandas_append_removed_status_is_contradicted() -> None:
+    result = verify_temporal_claims(
+        "Does pandas 2.0 still support DataFrame.append?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Yes, pandas 2.0 still supports DataFrame.append.",
+                    "claim_type": "api_or_library_behavior",
+                    "entities": ["pandas 2.0", "DataFrame.append"],
+                    "temporal_anchor": "pandas 2.0",
+                    "evidence_need": "version_specific",
+                }
+            ]
+        },
+        {
+            "evidence_results": [
+                {
+                    "claim_id": "C1",
+                    "evidence_items": [
+                        {
+                            "evidence_id": "E1",
+                            "title": "pandas 2.0 release notes",
+                            "evidence_summary": "DataFrame.append was removed in pandas 2.0. Use pandas.concat instead.",
+                            "evidence_value": "DataFrame.append was removed in pandas 2.0; use pandas.concat",
+                            "source_type": "official",
+                            "relevance_score": 0.95,
+                        }
+                    ],
+                }
+            ]
+        },
+        {"freshness_results": [{"claim_id": "C1", "claim_reliability_score": 0.95, "best_evidence_id": "E1"}]},
+        "VERSION_DEPENDENT",
+    )
+    verification = result["verification_results"][0]
+
+    assert verification["verification_status"] in {"OUTDATED", "CONTRADICTED"}
+    assert verification["evidence_value"] == "DataFrame.append was removed in pandas 2.0; use pandas.concat"
+
+
 def test_weak_freshness_blocks_supported_for_recent_claim() -> None:
     result = verify_temporal_claims(
         "Is the system current?",

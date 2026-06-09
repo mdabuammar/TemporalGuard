@@ -822,3 +822,112 @@ def test_python_downloads_url_without_trailing_slash_ignores_install_manager_ver
     evidence = result["evidence_results"][0]["evidence_items"][0]
     assert evidence["url"] == "https://www.python.org/downloads/source/"
     assert evidence["evidence_value"] == "Python 3.14.5"
+
+
+def test_event_winner_evidence_value_extracts_actual_winner_not_event_title() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "2014 FIFA World Cup results",
+                "url": "https://www.fifa.com/tournaments/mens/worldcup/2014",
+                "snippet": "Germany won the 2014 FIFA World Cup after defeating Argentina in the final.",
+                "publisher": "FIFA",
+                "source_type": "official",
+            }
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "Who won the 2014 FIFA World Cup?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "France won the 2014 FIFA World Cup.",
+                    "claim_type": "event_result",
+                    "entities": ["France", "2014 FIFA World Cup"],
+                    "temporal_anchor": "2014",
+                    "evidence_need": "historical",
+                }
+            ]
+        },
+        "HISTORICAL",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["evidence_value"] == "Germany"
+
+
+def test_date_question_evidence_value_extracts_actual_date() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Results Report",
+                "url": "https://www.who.int/news/item/covid-pheic",
+                "snippet": "WHO ended the COVID-19 public health emergency of international concern on May 5, 2023.",
+                "publisher": "WHO",
+                "source_type": "official",
+            }
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "When did WHO end the COVID-19 public health emergency of international concern?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "WHO ended the COVID-19 public health emergency in 2022.",
+                    "claim_type": "historical_fact",
+                    "entities": ["WHO", "COVID-19 public health emergency"],
+                    "temporal_anchor": "2022",
+                    "evidence_need": "historical",
+                }
+            ]
+        },
+        "HISTORICAL",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["evidence_value"] == "May 5, 2023"
+
+
+def test_lifecycle_question_evidence_value_ignores_unrelated_numbers() -> None:
+    provider = MockSearchProvider(
+        [
+            {
+                "title": "Node.js releases",
+                "url": "https://nodejs.org/en/about/previous-releases",
+                "snippet": "Node.js 18 reached end-of-life on April 30, 2025. Node.js 26.3 and 30 are unrelated future release numbers.",
+                "publisher": "Node.js",
+                "source_type": "official",
+            }
+        ]
+    )
+
+    result = retrieve_fresh_evidence(
+        "Is Node.js 18 still actively supported?",
+        {
+            "claims": [
+                {
+                    "claim_id": "C1",
+                    "claim_text": "Yes, Node.js 18 is still active LTS.",
+                    "claim_type": "software_version",
+                    "entities": ["Node.js 18"],
+                    "temporal_anchor": "current",
+                    "evidence_need": "fresh",
+                }
+            ]
+        },
+        "RECENT_ONLY",
+        provider,
+        max_sources_per_claim=1,
+    )
+
+    evidence = result["evidence_results"][0]["evidence_items"][0]
+    assert evidence["evidence_value"] == "end-of-life on April 30, 2025"
+    assert "26.3" not in evidence["evidence_value"]

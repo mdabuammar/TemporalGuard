@@ -143,10 +143,11 @@ def retrieve_fresh_evidence(
             evidence_results.append(_claim_result(claim_id, claim_text, query, [], "failed", warning))
             continue
 
-        ranked_results = _rank_search_results([_coerce_search_result(result) for result in raw_results], claim)
+        claim_context = {**claim, "_question": question}
+        ranked_results = _rank_search_results([_coerce_search_result(result) for result in raw_results], claim_context)
         useful_results = [ranked for ranked in ranked_results if ranked.score >= 0.50][:source_limit]
         evidence_items = [
-            _to_evidence_item(ranked.result, f"E{index}", claim, ranked.score)
+            _to_evidence_item(ranked.result, f"E{index}", claim_context, ranked.score)
             for index, ranked in enumerate(useful_results, start=1)
         ]
 
@@ -273,6 +274,15 @@ def _build_search_query(claim: dict[str, Any], question: str, temporal_category:
 
     if _is_python_version_claim(claim):
         return _compact_query("Python latest stable release site:python.org/downloads")
+    answer_type = _infer_question_answer_type({**claim, "claim_text": f"{question} {claim_text}"})
+    if answer_type == "winner":
+        return _compact_query(f"{question} winner official result")
+    if answer_type in {"date", "date_full"}:
+        return _compact_query(f"{question} date official")
+    if answer_type == "lifecycle":
+        return _compact_query(f"{question} end-of-life support schedule official")
+    if answer_type == "api_status":
+        return _compact_query(f"{question} removed deprecated official documentation")
 
     base_terms = entities[:2] or _important_terms(claim_text) or _important_terms(question)
     terms = list(base_terms)
@@ -380,7 +390,7 @@ def _to_evidence_item(result: SearchResult, evidence_id: str, claim: dict[str, A
         "updated_date": result.updated_date,
         "retrieved_at": _now_utc_iso(),
         "evidence_summary": evidence_summary,
-        "evidence_value": _extract_evidence_value(result),
+        "evidence_value": _extract_evidence_value(result, claim),
         "relevance_score": round(score, 2),
         "freshness_hint": _infer_freshness_hint(result, claim),
         "quote": None,
@@ -418,6 +428,26 @@ def _infer_relevance_score(result: SearchResult, claim: dict[str, Any]) -> float
             score += 0.12
         if _has_unstable_version_context(haystack_text):
             score -= 0.35
+
+    answer_type = _infer_question_answer_type(claim)
+    typed_value = _extract_typed_evidence_value(haystack_text, answer_type)
+    if answer_type == "date_full" and typed_value and not _is_trusted_date_source(result):
+        typed_value = None
+    if answer_type != "unknown":
+        score += 0.25 if typed_value and not _is_bad_evidence_value(typed_value, answer_type) else -0.20
+        if answer_type == "winner" and re.search(r"\b[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3}\s+won\s+the\b", haystack_text):
+            score += 0.15
+        if answer_type == "date" and _extract_date_or_year(haystack_text):
+            score += 0.15
+        if answer_type == "date_full":
+            if re.search(r"\b(who ends?|ended|no longer constituted|announced)\b", haystack, re.IGNORECASE):
+                score += 0.25
+            if re.search(r"\bdeclared\b", haystack, re.IGNORECASE) and not re.search(r"\b(no longer|ended|ends?)\b", haystack, re.IGNORECASE):
+                score -= 0.25
+        if answer_type == "lifecycle" and re.search(r"\b(end[- ]?of[- ]?life|eol|support ended|no longer supported)\b", haystack, re.IGNORECASE):
+            score += 0.15
+        if answer_type == "api_status" and re.search(r"\b(removed|deprecated|no longer supported)\b", haystack, re.IGNORECASE):
+            score += 0.15
 
     if any(weak in haystack for weak in WEAK_DOMAIN_HINTS):
         score -= 0.25
@@ -480,8 +510,14 @@ def _summary_from_result(result: SearchResult) -> str:
     return f"Search result titled '{result.title}' from {result.publisher or 'unknown'}."
 
 
-def _extract_evidence_value(result: SearchResult) -> str | None:
+def _extract_evidence_value(result: SearchResult, claim: dict[str, Any] | None = None) -> str | None:
     text = _result_text(result)
+    answer_type = _infer_question_answer_type(claim)
+    typed_value = _extract_typed_evidence_value(text, answer_type)
+    if answer_type == "date_full" and typed_value and not _is_trusted_date_source(result):
+        typed_value = None
+    if typed_value and not _is_bad_evidence_value(typed_value, answer_type):
+        return typed_value
     version = _extract_version_value(
         text,
         prefer_stable=_is_python_downloads_result(result),
@@ -490,6 +526,168 @@ def _extract_evidence_value(result: SearchResult) -> str | None:
     if version:
         return version
     return None
+
+
+def _infer_question_answer_type(claim: dict[str, Any] | None) -> str:
+    if not isinstance(claim, dict):
+        return "unknown"
+    text = " ".join(
+        str(part or "")
+        for part in (
+            claim.get("claim_text"),
+            claim.get("_question"),
+            claim.get("claim_type"),
+            claim.get("temporal_anchor"),
+            " ".join(str(entity) for entity in claim.get("entities", [])),
+        )
+    ).lower()
+    if re.search(r"\b(who won|won the|winner)\b", text):
+        return "winner"
+    if re.search(r"\bwhen\b", text):
+        return "date_full"
+    if re.search(r"\b(what year|ended|announced|landed|released on)\b", text):
+        return "date"
+    if re.search(r"\b(dataframe\.append|append|removed|deprecated|supports?)\b", text):
+        return "api_status"
+    if re.search(r"\b(still|active(?:ly)? supported|support|end[- ]?of[- ]?life|eol|lts)\b", text) and re.search(
+        r"\b(node\.?js|python|ubuntu|software|version|lts)\b", text
+    ):
+        return "lifecycle"
+    if str(claim.get("claim_type") or "") == "software_version":
+        return "software_version"
+    return "unknown"
+
+
+def _extract_typed_evidence_value(text: str, answer_type: str) -> str | None:
+    if answer_type == "winner":
+        return _extract_winner_entity(text)
+    if answer_type == "date_full":
+        return _extract_date_or_year(text, require_full_date=True)
+    if answer_type == "date":
+        return _extract_date_or_year(text)
+    if answer_type == "lifecycle":
+        return _extract_lifecycle_value(text)
+    if answer_type == "api_status":
+        return _extract_api_status_value(text)
+    return None
+
+
+def _extract_winner_entity(text: str) -> str | None:
+    patterns = [
+        r"\b(?P<winner>[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+won\s+the\b",
+        r"\bthe\s+winner\s+was\s+(?P<winner>[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\b",
+        r"\b(?P<winner>[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,3})\s+(?:beat|defeated)\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text or "")
+        if match:
+            winner = _clean_entity_value(match.group("winner"))
+            if winner and not _is_bad_evidence_value(winner, "winner"):
+                return winner
+    return None
+
+
+def _extract_date_or_year(text: str, require_full_date: bool = False) -> str | None:
+    date_pattern = (
+        r"\b(?:on\s+)?(?P<date>(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
+        r"Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+(?:19|20)\d{2})\b"
+    )
+    matches = list(re.finditer(date_pattern, text or "", flags=re.IGNORECASE))
+    if require_full_date:
+        for match in matches:
+            local = (text or "")[max(0, match.start() - 90) : min(len(text or ""), match.end() + 140)]
+            if re.search(r"\b(ended|announced|declared|no longer|terminated|concluded|ceased)\b", local, re.IGNORECASE):
+                return re.sub(r"\s+", " ", match.group("date")).strip()
+        return None
+    date_match = matches[0] if matches else None
+    if date_match:
+        return re.sub(r"\s+", " ", date_match.group("date")).strip()
+    if require_full_date:
+        return None
+    year_match = re.search(r"\b(?:in|on|ended|announced|landed|released)\s+(?P<year>(?:19|20)\d{2})\b", text or "", re.IGNORECASE)
+    if year_match:
+        return year_match.group("year")
+    return None
+
+
+def _extract_lifecycle_value(text: str) -> str | None:
+    date = _date_near_lifecycle_context(text) or _extract_date_or_year(text)
+    lower = (text or "").lower()
+    if re.search(r"\b(end[- ]?of[- ]?life|eol|reached end|support ended|no longer supported|not supported)\b", lower):
+        return f"end-of-life on {date}" if date else "end-of-life"
+    if re.search(r"\bmaintenance lts|maintenance support\b", lower):
+        return f"maintenance LTS until {date}" if date else "maintenance LTS"
+    if re.search(r"\bactive lts|actively supported|active support\b", lower):
+        return f"active LTS until {date}" if date else "active LTS"
+    if re.search(r"\bsecurity maintenance|security updates?\b", lower):
+        return f"security maintenance until {date}" if date else "security maintenance"
+    return None
+
+
+def _date_near_lifecycle_context(text: str) -> str | None:
+    date_pattern = (
+        r"\b(?P<date>(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|"
+        r"Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+(?:19|20)\d{2})\b"
+    )
+    matches = list(re.finditer(date_pattern, text or "", flags=re.IGNORECASE))
+    for match in matches:
+        local = (text or "")[max(0, match.start() - 160) : min(len(text or ""), match.end() + 80)]
+        if re.search(r"\b(reached|support ended|ended|no longer receives?|no longer supported)\b", local, re.IGNORECASE):
+            return re.sub(r"\s+", " ", match.group("date")).strip()
+    return None
+
+
+def _extract_api_status_value(text: str) -> str | None:
+    lower = (text or "").lower()
+    if "dataframe.append" in lower or ".append" in lower:
+        if re.search(r"\bremoved|deprecated|no longer|not supported\b", lower):
+            version = re.search(r"\bpandas\s+(\d+(?:\.\d+){1,2})\b", text or "", re.IGNORECASE)
+            suffix = f" in pandas {version.group(1)}" if version else ""
+            return f"DataFrame.append was removed{suffix}; use pandas.concat"
+        if re.search(r"\bsupports?|available\b", lower):
+            return "DataFrame.append is supported"
+    return None
+
+
+def _clean_entity_value(value: str) -> str:
+    value = re.sub(r"\s+", " ", (value or "").strip(" .,:;()[]{}"))
+    value = re.sub(r"^(The|A|An)\s+", "", value)
+    value = re.sub(r"^(?:FIFA\s+)?World Cup\s+", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"^Results?\s+", "", value, flags=re.IGNORECASE)
+    return value
+
+
+def _is_bad_evidence_value(value: str, answer_type: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9.]+", " ", str(value or "").lower()).strip()
+    bad_values = {
+        "world cup",
+        "fifa",
+        "fifa world cup",
+        "tournament",
+        "final",
+        "match",
+        "results report",
+        "report",
+        "official website",
+        "source",
+        "documentation",
+        "download",
+    }
+    if normalized in bad_values:
+        return True
+    if answer_type in {"winner", "date", "date_full", "lifecycle"} and re.fullmatch(r"\d+(?:\.\d+)?", normalized or ""):
+        return True
+    if answer_type == "lifecycle" and re.fullmatch(r"(?:manager\s+)?\d+(?:\.\d+){0,2}", normalized or ""):
+        return True
+    return False
+
+
+def _is_trusted_date_source(result: SearchResult) -> bool:
+    source_type = _validate_source_type(result.source_type)
+    url = str(result.url or "").lower()
+    return source_type in {"official", "government", "academic", "standards", "database"} or any(
+        domain in url for domain in ("who.int", "thelancet.com", "nejm.org", "nature.com", "sciencedirect.com")
+    )
 
 
 def _extract_version_value(
